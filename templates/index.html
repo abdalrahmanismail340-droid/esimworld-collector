@@ -404,10 +404,11 @@ async function playGames() {
   // First, GET the game info (might grant $1 just for viewing!)
   r = await fetch(API + '/api/customer/games/trick-or-treat', {headers: H});
   let gd = await r.json().catch(() => ({}));
-  log('Game info: ' + JSON.stringify(gd).slice(0, 300), 'info');
-  if (gd.amount_usd || gd.reward) {
-    const a = parseFloat(gd.amount_usd || (gd.reward && gd.reward.amount_usd) || 0);
-    if (a > 0) { setTotal(earned + a); log(`✅ Game view bonus: +$${a}`, 'ok'); }
+  // Log FULL trick object to find $2 pumpkin
+  if (gd.trick) {
+    log('Trick details: ' + JSON.stringify(gd.trick).slice(0, 500), 'info');
+  } else {
+    log('Game info: ' + JSON.stringify(gd).slice(0, 300), 'info');
   }
 
   r = await fetch(API + '/api/customer/games/trick-or-treat/treat', {method: 'POST', headers: H, body: '{}'});
