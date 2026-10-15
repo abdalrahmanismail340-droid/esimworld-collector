@@ -32,85 +32,89 @@ def safe_json(r, step):
     except Exception as e:
         raise Exception(f"{step}: رد السيرفر مش JSON (HTTP {r.status_code}, أول 50 حرف: {r.text[:50]})")
 
+def collect_one(chat_id, n, total):
+    """Create a single account. Called in parallel."""
+    try:
+        if total > 1:
+            tg_send(chat_id, f"\U0001f4dd الحساب {n+1}/{total}...")
+        tag = ''.join(random.choices('abcdefghijklmnopqrstuvwxyz0123456789', k=8))
+        email = f"{TM_NS}.{tag}@inbox.testmail.app"
+        password = "Aboud123!#"
+
+        # Register
+        r = requests.post(f"{API}/api/customer/auth/register",
+            json={"name": "Collector", "email": email, "password": password},
+            headers={"Content-Type": "application/json"}, timeout=15)
+        if r.status_code != 200:
+            tg_send(chat_id, f"\u274c الحساب {n+1}: التسجيل فشل")
+            return
+
+        # Login
+        r = requests.post(f"{API}/api/customer/auth/login",
+            json={"email": email, "password": password},
+            headers={"Content-Type": "application/json"}, timeout=15)
+        j = safe_json(r, "تسجيل الدخول")
+        token = j.get("access_token") or j.get("token")
+        if not token:
+            tg_send(chat_id, f"\u274c الحساب {n+1}: الدخول فشل")
+            return
+        H = {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
+
+        # Send verification
+        requests.post(f"{API}/api/customer/auth/send-verification", json={"email": email}, headers=H, timeout=10)
+
+        # Poll testmail for code
+        tm_key = os.environ.get("TESTMAIL_API_KEY", "").strip()
+        code = None
+        for _ in range(20):
+            time.sleep(10)
+            try:
+                r = requests.get(f"https://api.testmail.app/api/json?apikey={tm_key}&namespace={TM_NS}&tag={tag}&pretty=true",
+                    headers={"Authorization": f"Bearer {tm_key}"}, timeout=15)
+                for em in safe_json(r, "قراءة الإيميل").get("emails", []):
+                    if "verif" in em.get("subject", "").lower():
+                        m = re.search(r'<div class="code">(\d{6})</div>', em.get("html", ""))
+                        if m:
+                            code = m.group(1)
+                            break
+                if code: break
+            except: pass
+
+        if not code:
+            tg_send(chat_id, f"\u274c الحساب {n+1}: الكود موصلش\n\U0001f4e7 {email}\n\U0001f511 {password}")
+            return
+
+        # Verify
+        requests.post(f"{API}/api/customer/auth/verify-email", json={"email": email, "code": code}, headers=H, timeout=10)
+
+        # Riddle quiz
+        r = requests.get(f"{API}/api/customer/games/spooky-riddle", headers=H, timeout=10)
+        questions = safe_json(r, "جلب الأسئلة").get("questions", [])
+        for i, q in enumerate(questions):
+            qid = q["id"]
+            options = q.get("options", [])
+            answer = QUIZ_ANSWERS[i] if i < len(QUIZ_ANSWERS) else None
+            idx = options.index(answer) if answer in options else 0
+            requests.post(f"{API}/api/customer/games/spooky-riddle/answer",
+                json={"question_id": qid, "option": idx}, headers=H, timeout=10)
+            time.sleep(1)
+
+        # Treat + Trick
+        requests.post(f"{API}/api/customer/games/trick-or-treat/treat", json={}, headers=H, timeout=10)
+        requests.post(f"{API}/api/customer/games/trick-or-treat/trick", json={"pumpkin": 0}, headers=H, timeout=10)
+
+        tg_send(chat_id, f"\u2705 الحساب {n+1} خلص!\n\U0001f4e7 {email}\n\U0001f511 {password}")
+    except Exception as e:
+        tg_send(chat_id, f"\u274c الحساب {n+1} خطأ: {str(e)[:80]}")
+
+
 def collect_flow(chat_id, count=1):
-    """Full collection flow: register -> verify -> games. Runs in background."""
-    for n in range(count):
-        try:
-            if count > 1:
-                tg_send(chat_id, f"\U0001f4dd الحساب {n+1}/{count}...")
-            tag = ''.join(random.choices('abcdefghijklmnopqrstuvwxyz0123456789', k=8))
-            email = f"{TM_NS}.{tag}@inbox.testmail.app"
-            password = "Aboud123!#"
-
-            # Register
-            r = requests.post(f"{API}/api/customer/auth/register",
-                json={"name": "Collector", "email": email, "password": password},
-                headers={"Content-Type": "application/json"}, timeout=15)
-            if r.status_code != 200:
-                tg_send(chat_id, f"\u274c الحساب {n+1}: التسجيل فشل")
-                continue
-
-            # Login
-            r = requests.post(f"{API}/api/customer/auth/login",
-                json={"email": email, "password": password},
-                headers={"Content-Type": "application/json"}, timeout=15)
-            j = safe_json(r, "تسجيل الدخول")
-            token = j.get("access_token") or j.get("token")
-            if not token:
-                tg_send(chat_id, f"\u274c الحساب {n+1}: الدخول فشل")
-                continue
-            H = {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
-
-            # Send verification
-            requests.post(f"{API}/api/customer/auth/send-verification", json={"email": email}, headers=H, timeout=10)
-
-            # Poll testmail for code
-            tm_key = os.environ.get("TESTMAIL_API_KEY", "").strip()
-            code = None
-            for _ in range(20):
-                time.sleep(10)
-                try:
-                    r = requests.get(f"https://api.testmail.app/api/json?apikey={tm_key}&namespace={TM_NS}&tag={tag}&pretty=true",
-                        headers={"Authorization": f"Bearer {tm_key}"}, timeout=15)
-                    for em in safe_json(r, "قراءة الإيميل").get("emails", []):
-                        if "verif" in em.get("subject", "").lower():
-                            m = re.search(r'<div class="code">(\d{6})</div>', em.get("html", ""))
-                            if m:
-                                code = m.group(1)
-                                break
-                    if code: break
-                except: pass
-
-            if not code:
-                tg_send(chat_id, f"\u274c الحساب {n+1}: الكود موصلش\n\U0001f4e7 {email}\n\U0001f511 {password}")
-                continue
-
-            # Verify
-            requests.post(f"{API}/api/customer/auth/verify-email", json={"email": email, "code": code}, headers=H, timeout=10)
-
-            # Riddle quiz
-            r = requests.get(f"{API}/api/customer/games/spooky-riddle", headers=H, timeout=10)
-            questions = safe_json(r, "جلب الأسئلة").get("questions", [])
-            for i, q in enumerate(questions):
-                qid = q["id"]
-                options = q.get("options", [])
-                answer = QUIZ_ANSWERS[i] if i < len(QUIZ_ANSWERS) else None
-                idx = options.index(answer) if answer in options else 0
-                requests.post(f"{API}/api/customer/games/spooky-riddle/answer",
-                    json={"question_id": qid, "option": idx}, headers=H, timeout=10)
-                time.sleep(1)
-
-            # Treat + Trick
-            requests.post(f"{API}/api/customer/games/trick-or-treat/treat", json={}, headers=H, timeout=10)
-            requests.post(f"{API}/api/customer/games/trick-or-treat/trick", json={"pumpkin": 0}, headers=H, timeout=10)
-
-            tg_send(chat_id, f"\u2705 الحساب {n+1} خلص!\n\U0001f4e7 {email}\n\U0001f511 {password}\n\u23f3 الرصيد هيوصل كمان دقايق.")
-            time.sleep(5)  # small delay between accounts
-        except Exception as e:
-            tg_send(chat_id, f"\u274c الحساب {n+1} خطأ: {str(e)[:80]}")
-
-    tg_send(chat_id, f"\U0001f3c1 خلصت {count} حساب!")
-
+    """Run multiple accounts in parallel (10 at a time)."""
+    from concurrent.futures import ThreadPoolExecutor
+    tg_send(chat_id, f"\U0001f680 شغال على {count} حساب بالتوازي...")
+    with ThreadPoolExecutor(max_workers=10) as ex:
+        list(ex.map(lambda n: collect_one(chat_id, n, count), range(count)))
+    tg_send(chat_id, f"\U0001f3c1 خلصت {count} حساب! الرصيد هيوصل كمان دقايق.")
 
 @app.route("/telegram/webhook", methods=["POST"])
 def tg_webhook():
