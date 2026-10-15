@@ -78,6 +78,7 @@ input{width:100%;padding:12px;border-radius:8px;border:1px solid #444;background
   <div class="desc">أول ما الـ $5 توصل، هيطبق <b>TRAVEL20</b> ويشتري 1GB/3أيام أوتوماتيك</div>
   <div id="buyStatus" style="color:#888;font-size:13px">في الانتظار...</div>
   <button onclick="checkRewards()" style="background:#444;margin-top:8px">🔍 فحص حالة الجوائز</button>
+  <button onclick="claimWelcome()" style="background:#22c55e;margin-top:8px">🎁 استلم الـ $1 المجاني (بدون لعب)</button>
   <div id="rewardStatus" style="font-size:12px;color:#888;margin-top:8px"></div>
 </div>
 
@@ -442,6 +443,27 @@ async function playGames() {
     setTimeout(pollWallet, 30000);
   };
   pollWallet();
+}
+
+// Claim $1 welcome bonus (no playing needed)
+async function claimWelcome() {
+  if (!token) return log('سجل الأول', 'err');
+  const H = {Authorization: 'Bearer ' + token, 'Content-Type': 'application/json'};
+  log('🎁 Claiming $1 welcome bonus...', 'info');
+  try {
+    const r = await fetch(API + '/api/customer/cashback/welcome/claimr', {
+      method: 'POST', headers: H, body: '{}'
+    });
+    const j = await r.json();
+    log('Response: ' + JSON.stringify(j).slice(0, 300), r.ok ? 'ok' : 'err');
+    if (j.amount_usd || j.amount) {
+      const a = parseFloat(j.amount_usd || j.amount);
+      setTotal(earned + a);
+      log(`✅ Welcome bonus: +$${a}`, 'ok');
+    }
+  } catch(e) {
+    log('❌ ' + e.message, 'err');
+  }
 }
 
 // Check reward status via API
