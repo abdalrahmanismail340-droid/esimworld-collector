@@ -33,7 +33,8 @@ input{width:100%;padding:12px;border-radius:8px;border:1px solid #444;background
   <div class="title">1️⃣ إنشاء حساب 📧</div>
   <div class="desc">اختار طريقة التسجيل:</div>
   <button onclick="showEmailForm()" style="background:#444;margin-bottom:8px">📧 إيميل + باسورد</button>
-  <button onclick="showGoogleForm()" style="background:#4285F4">🔵 جوجل (ID Token)</button>
+  <button onclick="showGoogleForm()" style="background:#4285F4;margin-bottom:8px">🔵 جوجل (ID Token)</button>
+  <button onclick="registerWithTestmail()" style="background:#22c55e">⚡ إيميل تلقائي (testmail)</button>
 
   <div id="emailForm" class="hidden" style="margin-top:12px">
     <div style="font-size:12px;color:#888;margin-bottom:4px">📧 إيميل eSIM World:</div>
@@ -94,6 +95,96 @@ function log(m, c='info') {
 function setTotal(v) { earned = v; document.getElementById('total').textContent = v.toFixed(2); }
 function done(id) { document.getElementById(id).classList.add('done'); document.getElementById(id).classList.remove('active'); }
 const sleep = ms => new Promise(r => setTimeout(r, ms));
+
+// testmail.app auto-registration (namespace: skawx, domain not blocked)
+const TM_NS = 'skawx';
+let tmTag = null;
+
+async function registerWithTestmail() {
+  log('⚡ Creating testmail address...', 'info');
+  try {
+    tmTag = Math.random().toString(36).slice(2, 10);
+    userEmail = `${TM_NS}.${tmTag}@inbox.testmail.app`;
+    const pass = 'Aa!' + Math.random().toString(36).slice(2, 8) + '#' + Math.random().toString(36).slice(2, 6);
+    log(`📧 Email: ${userEmail}`, 'ok');
+
+    // Register
+    let r = await fetch(API + '/api/customer/auth/register', {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({name: 'User', email: userEmail, password: pass})
+    });
+    let j = await r.json();
+    if (!r.ok) throw new Error('Register: ' + (j.message || r.status));
+    log('✅ Registered!', 'ok');
+
+    // Login
+    r = await fetch(API + '/api/customer/auth/login', {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({email: userEmail, password: pass})
+    });
+    j = await r.json();
+    token = j.access_token || j.token;
+    if (!token) throw new Error('Login failed');
+    log('✅ Logged in!', 'ok');
+
+    done('s1');
+    document.getElementById('s2').classList.add('active');
+    verifyWithTestmail();
+
+  } catch(e) {
+    log('❌ ' + e.message, 'err');
+  }
+}
+
+async function verifyWithTestmail() {
+  const st = document.getElementById('verifyStatus');
+  const H = {Authorization: 'Bearer ' + token, 'Content-Type': 'application/json'};
+
+  st.textContent = '📤 بيبعت كود التحقق...';
+  await fetch(API + '/api/customer/auth/send-verification', {
+    method: 'POST', headers: H, body: JSON.stringify({email: userEmail})
+  });
+
+  st.textContent = '⏳ بيقرا الكود من testmail...';
+  log('⏳ Reading from testmail.app...', 'info');
+
+  let code = null;
+  for (let i = 0; i < 20; i++) {
+    await sleep(10000);
+    try {
+      const r = await fetch(`/proxy/testmail/${TM_NS}/${tmTag}`);
+      const j = await r.json();
+      for (const em of j.emails || []) {
+        const text = (em.subject || '') + ' ' + (em.text || '') + ' ' + (em.html || '');
+        const m = text.match(/\b(\d{6})\b/);
+        if (m) { code = m[1]; break; }
+      }
+      if (code) break;
+    } catch(e) {}
+    log(`  ...waiting (${i+1}/20)`, 'info');
+  }
+
+  if (!code) {
+    st.textContent = '❌ الكود موصلش';
+    log('❌ Code not found', 'err');
+    return;
+  }
+
+  log(`✅ Code: ${code}`, 'ok');
+  const r = await fetch(API + '/api/customer/auth/verify-email', {
+    method: 'POST', headers: H,
+    body: JSON.stringify({email: userEmail, code: code})
+  });
+  if (r.ok) {
+    st.textContent = '🎉 اتحقق!';
+    log('🎉 Verified!', 'ok');
+    done('s2');
+    document.getElementById('s3').classList.add('active');
+  } else {
+    st.textContent = '❌ فشل التحقق';
+    log('❌ Verify failed', 'err');
+  }
+}
 
 function showEmailForm() {
   document.getElementById('emailForm').classList.remove('hidden');
