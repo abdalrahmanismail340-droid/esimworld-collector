@@ -32,7 +32,7 @@ def safe_json(r, step):
     except Exception as e:
         raise Exception(f"{step}: رد السيرفر مش JSON (HTTP {r.status_code}, أول 50 حرف: {r.text[:50]})")
 
-def api_call(method, url, max_retries=3, **kwargs):
+def api_call(method, url, max_retries=5, **kwargs):
     """API call with automatic retry on timeout/connection errors."""
     import time as _time
     kwargs.setdefault("timeout", 30)
@@ -40,15 +40,27 @@ def api_call(method, url, max_retries=3, **kwargs):
     for attempt in range(max_retries):
         try:
             r = requests.request(method, url, **kwargs)
-            # Retry on 429 (rate limit) and 5xx
-            if r.status_code == 429 or r.status_code >= 500:
+            if r.status_code == 429:
+                # Rate limited - wait longer (check retry_after header)
+                retry_after = r.headers.get("Retry-After")
+                wait = int(retry_after) if retry_after and retry_after.isdigit() else 60
+                # Also check body for retry_after
+                try:
+                    body = r.json()
+                    if "retry_after" in body:
+                        wait = int(body["retry_after"])
+                except: pass
+                last_err = f"HTTP 429 (rate limit, waiting {wait}s)"
+                _time.sleep(wait)
+                continue
+            if r.status_code >= 500:
                 last_err = f"HTTP {r.status_code}"
-                _time.sleep(2 * (attempt + 1))
+                _time.sleep(5 * (attempt + 1))
                 continue
             return r
         except (requests.exceptions.Timeout, requests.exceptions.ConnectionError) as e:
             last_err = str(e)[:60]
-            _time.sleep(2 * (attempt + 1))
+            _time.sleep(5 * (attempt + 1))
     raise Exception(f"فشل بعد {max_retries} محاولات: {last_err}")
 
 def collect_one(chat_id, n, total):
