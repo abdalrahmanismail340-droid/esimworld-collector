@@ -103,7 +103,8 @@ def collect_one(chat_id, n, total):
                 r = api_call("GET", f"https://api.testmail.app/api/json?apikey={tm_key}&namespace={TM_NS}&tag={tag}&pretty=true",
                     headers={"Authorization": f"Bearer {tm_key}"}, timeout=15)
                 for em in safe_json(r, "قراءة الإيميل").get("emails", []):
-                    if "verif" in em.get("subject", "").lower():
+                    subj = em.get("subject", "").lower()
+                    if "verif" in subj or "تحقق" in em.get("subject", "") or "esim world" in subj:
                         m = re.search(r'<div class="code">(\d{6})</div>', em.get("html", ""))
                         if m:
                             code = m.group(1)
