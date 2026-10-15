@@ -21,6 +21,8 @@ def proxy(subpath):
         target = WWW + "/" + subpath[4:]
     elif subpath.startswith("bulkmail/"):
         target = "https://bulkmail.shop/" + subpath[9:]
+    elif subpath.startswith("mailtm/"):
+        target = "https://api.mail.tm/" + subpath[7:]
     else:
         target = API + "/" + subpath
 
