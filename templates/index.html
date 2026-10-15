@@ -83,6 +83,7 @@ input{width:100%;padding:12px;border-radius:8px;border:1px solid #444;background
   <div id="buyStatus" style="color:#888;font-size:13px">في الانتظار...</div>
   <button onclick="checkRewards()" style="background:#444;margin-top:8px">🔍 فحص حالة الجوائز</button>
   <button onclick="claimWelcome()" style="background:#22c55e;margin-top:8px">🎁 استلم الـ $1 المجاني (بدون لعب)</button>
+  <button onclick="getEsimDetails()" style="background:#8b5cf6;margin-top:8px">📱 تفاصيل الشريحة (LPA/QR)</button>
   <div id="rewardStatus" style="font-size:12px;color:#888;margin-top:8px"></div>
 </div>
 
@@ -482,6 +483,54 @@ async function claimWelcome() {
       log(`✅ Welcome bonus: +$${a}`, 'ok');
     }
   } catch(e) {
+    log('❌ ' + e.message, 'err');
+  }
+}
+
+// Get eSIM activation details (LPA/QR)
+async function getEsimDetails() {
+  if (!token) return log('سجل الأول', 'err');
+  const H = {Authorization: 'Bearer ' + token, 'Content-Type': 'application/json'};
+  const st = document.getElementById('rewardStatus');
+  st.textContent = '📱 بيجيب تفاصيل الشريحة...';
+  log('📱 Fetching eSIM details...', 'info');
+
+  try {
+    // Get my orders
+    let r = await fetch(API + '/api/customer/my-orders', {headers: H});
+    let j = await r.json();
+    const orders = j.items || j.data || j.orders || [];
+    log(`Orders found: ${orders.length}`, 'info');
+
+    if (!orders.length) { st.textContent = '❌ مفيش طلبات'; return; }
+
+    const order = orders[0];
+    const orderId = order.id || order.order_id;
+    log(`Order: ${orderId}`, 'info');
+
+    // Get order details
+    r = await fetch(API + '/api/customer/orders/' + orderId, {headers: H});
+    j = await r.json();
+
+    // Look for eSIM details
+    let out = 'Order: ' + orderId + '\n';
+    const txt = JSON.stringify(j);
+    // Find LPA, QR, ICCID
+    const lpa = txt.match(/LPA:[^"\\]+/);
+    const qr = j.qr_code || j.qrCode || j.qr || (j.esim && j.esim.qr_code);
+    const iccid = j.iccid || (j.esim && j.esim.iccid);
+
+    if (lpa) out += 'LPA: ' + lpa[0] + '\n';
+    if (qr) out += 'QR: ' + (typeof qr === 'string' ? qr.slice(0, 200) : JSON.stringify(qr).slice(0, 200)) + '\n';
+    if (iccid) out += 'ICCID: ' + iccid + '\n';
+    if (!lpa && !qr && !iccid) {
+      out += 'Full response:\n' + txt.slice(0, 800);
+    }
+
+    st.innerHTML = '<pre style="direction:ltr;text-align:left;white-space:pre-wrap;font-size:11px">' + out + '</pre>';
+    log('✅ Details fetched', 'ok');
+  } catch(e) {
+    st.textContent = '❌ ' + e.message;
     log('❌ ' + e.message, 'err');
   }
 }
