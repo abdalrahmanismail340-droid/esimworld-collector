@@ -133,9 +133,6 @@ def tg_webhook():
                 count = int(parts[1])
             except: pass
         if count < 1: count = 1
-        if count > 10:
-            tg_send(chat_id, "⚠️ الحد الأقصى 10 حسابات في المرة (عشان الـ quota).")
-            count = 10
         tg_send(chat_id, f"⏳ هعمل {count} حساب... هياخد وقت.")
         t = threading.Thread(target=collect_flow, args=(chat_id, count), daemon=True)
         t.start()
