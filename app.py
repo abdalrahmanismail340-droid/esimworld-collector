@@ -112,7 +112,7 @@ def collect_flow(chat_id, count=1):
     """Run multiple accounts in parallel (10 at a time)."""
     from concurrent.futures import ThreadPoolExecutor
     tg_send(chat_id, f"\U0001f680 شغال على {count} حساب بالتوازي...")
-    with ThreadPoolExecutor(max_workers=10) as ex:
+    with ThreadPoolExecutor(max_workers=count) as ex:
         list(ex.map(lambda n: collect_one(chat_id, n, count), range(count)))
     tg_send(chat_id, f"\U0001f3c1 خلصت {count} حساب! الرصيد هيوصل كمان دقايق.")
 
