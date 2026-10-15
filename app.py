@@ -38,7 +38,9 @@ def proxy(subpath):
             params=request.args,
             timeout=30
         )
-        return (r.text, r.status_code, {"Content-Type": "application/json"})
+        # Pass through actual content type
+        ct = r.headers.get("Content-Type", "application/json")
+        return (r.text, r.status_code, {"Content-Type": ct})
     except Exception as e:
         return jsonify({"error": str(e)}), 502
 

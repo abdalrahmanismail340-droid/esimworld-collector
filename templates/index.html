@@ -212,7 +212,14 @@ async function doGoogle() {
       method: 'POST', headers: {'Content-Type': 'application/json'},
       body: JSON.stringify({code})
     });
-    const j = await r.json();
+    const txt = await r.text();
+    let j;
+    try { j = JSON.parse(txt); }
+    catch(e) {
+      log('❌ Server returned HTML (code expired/invalid?)', 'err');
+      log('💡 هات كود جديد من جوجل — الكود بيستخدم مرة واحدة وبيخلص بسرعة', 'info');
+      return;
+    }
     if (j.access_token) {
       token = j.access_token;
       log('✅ Google login OK', 'ok');
