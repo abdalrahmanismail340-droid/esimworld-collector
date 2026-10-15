@@ -134,7 +134,22 @@ def collect_one(chat_id, n, total):
         api_call("POST", f"{API}/api/customer/games/trick-or-treat/treat", json={}, headers=H, timeout=10)
         api_call("POST", f"{API}/api/customer/games/trick-or-treat/trick", json={"pumpkin": 0}, headers=H, timeout=10)
 
-        tg_send(chat_id, f"\u2705 الحساب {n+1} خلص!\n\U0001f4e7 {email}\n\U0001f511 {password}")
+        tg_send(chat_id, f"\u2705 الحساب {n+1} خلص الألعاب!\n\U0001f4e7 {email}\n\U0001f511 {password}\n\u23f3 مستني الرصيد...")
+
+        # Poll wallet until balance arrives (up to 10 min)
+        import time as _t2
+        for _ in range(20):
+            _t2.sleep(30)
+            try:
+                r = api_call("GET", f"{API}/api/customer/wallets/me", headers=H, timeout=15)
+                bal = float(safe_json(r, "قراءة الرصيد").get("balance", 0) or 0)
+                if bal >= 4:
+                    tg_send(chat_id, f"\U0001f3c1 الرصيد وصل!\n\U0001f4e7 {email}\n\U0001f511 {password}\n\U0001f4b0 الرصيد: ${bal}")
+                    break
+            except:
+                pass
+        else:
+            tg_send(chat_id, f"\u23f3 الرصيد لسه موصلش للحساب {n+1}\n\U0001f4e7 {email}\n\U0001f511 {password}")
     except Exception as e:
         tg_send(chat_id, f"\u274c الحساب {n+1} خطأ: {str(e)[:80]}")
 
