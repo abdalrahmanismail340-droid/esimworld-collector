@@ -31,9 +31,13 @@ input{width:100%;padding:12px;border-radius:8px;border:1px solid #444;background
 
 <div class="step active" id="s1">
   <div class="title">1️⃣ إنشاء حساب 📧</div>
-  <div class="desc">دخل إيميل حقيقي (من bulkmail.shop) — eSIM World بيرفض الإيميلات المؤقتة</div>
-  <input dir="ltr" id="userEmail" placeholder="you@example.com">
-  <input dir="ltr" id="userPass" type="text" placeholder="الباسورد (أو سيبه فاضي وهيتعمل أوتو)">
+  <div class="desc">دخل بيانات حساب eSIM World الجديد (إيميل حقيقي من bulkmail.shop)</div>
+  <div style="font-size:12px;color:#888;margin-bottom:4px">📧 إيميل eSIM World:</div>
+  <input dir="ltr" id="userEmail" placeholder="you@example.com" style="margin-top:0">
+  <div style="font-size:12px;color:#888;margin-bottom:4px;margin-top:8px">🔑 باسورد eSIM World <span style="color:#666">(جديد، منفصل عن أي حاجة تانية):</span></div>
+  <input dir="ltr" id="userPass" type="text" placeholder="لازم special character مثل !#@" style="margin-top:0">
+  <div style="font-size:11px;color:#666;margin-top:4px">شروط الباسورد: 8 حروف على الأقل + حرف مميز (! # @)</div>
+  <div style="font-size:11px;color:#666;margin-top:8px;border-top:1px solid #333;padding-top:8px">💡 ملحوظة: bulkmail.shop ملهاش باسورد هنا — بس اتأكد إنك مسجل دخول عليها في تاب تاني</div>
   <button id="b1" onclick="createAccount()">🚀 سجل</button>
 </div>
 
@@ -78,7 +82,13 @@ async function createAccount() {
   userEmail = document.getElementById('userEmail').value.trim();
   let pass = document.getElementById('userPass').value.trim();
   if (!userEmail || !userEmail.includes('@')) return log('❌ دخل إيميل صحيح', 'err');
-  if (!pass) { pass = 'Pass' + Math.random().toString(36).slice(2, 10) + '123!'; }
+  // eSIM World password rules: min 8 chars + special character
+  if (!pass) {
+    const r1 = Math.random().toString(36).slice(2, 8);
+    const r2 = Math.random().toString(36).slice(2, 6);
+    pass = 'Aa!' + r1 + '#' + r2; // guaranteed: uppercase, lowercase, special chars
+    log(`🔑 Generated password: ${pass}`, 'info');
+  }
 
   btn.disabled = true; btn.textContent = '⏳ جاري التسجيل...';
 
