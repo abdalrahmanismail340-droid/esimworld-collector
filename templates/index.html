@@ -390,23 +390,17 @@ async function playGames() {
     else log(`  Riddle L${q.level}: correct`, 'info');
   }
 
-  // Trick or Treat
+  // Trick or Treat - try all 3 pumpkins!
   log('🎃 Playing trick-or-treat...', 'info');
   r = await fetch(API + '/api/customer/games/trick-or-treat/treat', {method: 'POST', headers: H, body: '{}'});
   let j = await r.json();
   if (j.amount_usd) { setTotal(earned + parseFloat(j.amount_usd)); log(`✅ Treat: +$${j.amount_usd}`, 'ok'); }
 
-  r = await fetch(API + '/api/customer/games/trick-or-treat/trick', {method: 'POST', headers: H, body: JSON.stringify({pumpkin: 0})});
-  j = await r.json();
-  if (j.amount_usd) { setTotal(earned + parseFloat(j.amount_usd)); log(`✅ Trick: +$${j.amount_usd}`, 'ok'); }
-
-  // Welcome bonus
-  log('🎁 Claiming welcome bonus...', 'info');
-  r = await fetch(API + '/api/customer/cashback/welcome/claim', {method: 'POST', headers: H, body: '{}'});
-  j = await r.json().catch(() => ({}));
-  if (j.amount_usd || j.amount) {
-    const a = parseFloat(j.amount_usd || j.amount);
-    setTotal(earned + a); log(`✅ Welcome: +$${a}`, 'ok');
+  for (let p = 0; p < 3; p++) {
+    r = await fetch(API + '/api/customer/games/trick-or-treat/trick', {method: 'POST', headers: H, body: JSON.stringify({pumpkin: p})});
+    j = await r.json();
+    if (j.amount_usd) { setTotal(earned + parseFloat(j.amount_usd)); log(`✅ Trick pumpkin ${p}: +$${j.amount_usd}`, 'ok'); }
+    else log(`  Trick pumpkin ${p}: ${j.message || 'no reward'}`, 'info');
   }
 
   log(`🏁 Games done: $${earned} earned`, 'ok');
