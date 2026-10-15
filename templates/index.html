@@ -628,7 +628,7 @@ async function autoBuy(H, balance) {
     }
     if (!product) { st.textContent = '❌ مفيش باقة سعودية بالرصيد ده'; log('❌ No Saudi plan in budget', 'err'); return; }
     log(`✅ Found: ${product.title} - $${product.pricing.price}`, 'ok');
-    return doPurchase(H, product, st, balance);
+    return doPurchase(H, product, st, balance, 'TRAVEL20');
   }
 
   // Oman 1GB/3days with TRAVEL20
