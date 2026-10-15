@@ -77,6 +77,8 @@ input{width:100%;padding:12px;border-radius:8px;border:1px solid #444;background
   <div class="title">4️⃣ شراء عمان 🇴🇲</div>
   <div class="desc">أول ما الـ $5 توصل، هيطبق <b>TRAVEL20</b> ويشتري 1GB/3أيام أوتوماتيك</div>
   <div id="buyStatus" style="color:#888;font-size:13px">في الانتظار...</div>
+  <button onclick="checkRewards()" style="background:#444;margin-top:8px">🔍 فحص حالة الجوائز</button>
+  <div id="rewardStatus" style="font-size:12px;color:#888;margin-top:8px"></div>
 </div>
 
 <div class="log" id="log"></div>
@@ -446,6 +448,46 @@ async function playGames() {
     setTimeout(pollWallet, 30000);
   };
   pollWallet();
+}
+
+// Check reward status via API
+async function checkRewards() {
+  if (!token) return log('سجل الأول', 'err');
+  const H = {Authorization: 'Bearer ' + token, 'Content-Type': 'application/json'};
+  const st = document.getElementById('rewardStatus');
+  st.textContent = '🔍 بيفحص...';
+  log('🔍 Checking rewards status...', 'info');
+
+  let out = '';
+  // Check cashback/transactions
+  try {
+    let r = await fetch(API + '/api/customer/cashback', {headers: H});
+    let j = await r.json();
+    out += `Cashback: ${JSON.stringify(j).slice(0, 300)}\n`;
+    log('Cashback: ' + JSON.stringify(j).slice(0, 200), 'info');
+  } catch(e) { out += 'Cashback: error\n'; }
+
+  try {
+    let r = await fetch(API + '/api/customer/transactions', {headers: H});
+    let j = await r.json();
+    const txs = j.items || j.data || j || [];
+    out += `Transactions: ${Array.isArray(txs) ? txs.length : '?'} found\n`;
+    if (Array.isArray(txs)) {
+      for (const t of txs.slice(0, 5)) {
+        out += `  - ${t.amount || t.amount_usd} | ${t.status} | ${t.type || ''}\n`;
+        log(`TX: ${t.amount || t.amount_usd} | ${t.status}`, 'info');
+      }
+    }
+  } catch(e) { out += 'Transactions: error\n'; }
+
+  // Check game status
+  try {
+    let r = await fetch(API + '/api/customer/games/spooky-riddle', {headers: H});
+    let j = await r.json();
+    out += `Riddle played: ${j.played}, rewards: ${JSON.stringify(j.rewards || []).slice(0, 200)}\n`;
+  } catch(e) {}
+
+  st.innerHTML = '<pre style="direction:ltr;text-align:left;white-space:pre-wrap">' + out + '</pre>';
 }
 
 // Step 4: Auto-buy Oman 1GB/3days with TRAVEL20
