@@ -662,11 +662,16 @@ async function doPurchase(H, product, st, balance, coupon) {
     customer_name: me.name || 'Customer',
     customer_email: me.email,
     currency_id: '08337403-44c6-4d09-b1f0-dccb10b3a912',
-    payment_method: 'wallet',
+    payment_method: 'cashback',
     items: [{product_id: product.id, unit_price: product.pricing.price, quantity: 1}]
   };
   if (coupon) body.coupon_code = coupon;
-  const r = await fetch(API + '/api/orders', {method: 'POST', headers: H, body: JSON.stringify(body)});
+  // Try customer endpoint first, fallback to public
+  let r = await fetch(API + '/api/customer/orders', {method: 'POST', headers: H, body: JSON.stringify(body)});
+  if (!r.ok) {
+    log('Customer endpoint failed, trying public...', 'info');
+    r = await fetch(API + '/api/orders', {method: 'POST', headers: H, body: JSON.stringify(body)});
+  }
   const j = await r.json();
   if (r.ok) {
     st.textContent = '🎉 اتشترت بنجاح!';
