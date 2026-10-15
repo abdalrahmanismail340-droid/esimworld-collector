@@ -658,14 +658,13 @@ async function doPurchase(H, product, st, balance, coupon) {
   st.textContent = '💳 بيشتري بفلوس المحفظة...';
   const mr = await fetch(API + '/api/customer/auth/me', {headers: H});
   const me = await mr.json();
+  const price = parseFloat(product.pricing.price);
   const body = {
     customer_name: me.name || 'Customer',
     customer_email: me.email,
     currency_id: '08337403-44c6-4d09-b1f0-dccb10b3a912',
     payment_method: 'cashback',
-    use_wallet: true,
-    use_wallet_balance: true,
-    wallet_amount: balance,
+    cashback_amount: Math.min(balance, price),
     items: [{product_id: product.id, unit_price: product.pricing.price, quantity: 1}]
   };
   if (coupon) body.coupon_code = coupon;
