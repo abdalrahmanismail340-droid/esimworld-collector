@@ -1,10 +1,154 @@
 from flask import Flask, render_template, request, jsonify
 import requests
+import os
+import threading
+import time
+import random
+import re
 
 app = Flask(__name__)
 
 API = "https://api.esimworld.com"
 WWW = "https://www.esimworld.com"
+TM_NS = "skawx"
+
+# Telegram bot
+TG_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN", "").strip()
+TG_API = f"https://api.telegram.org/bot{TG_TOKEN}" if TG_TOKEN else None
+
+def tg_send(chat_id, text):
+    if not TG_API: return
+    try:
+        requests.post(f"{TG_API}/sendMessage", json={"chat_id": chat_id, "text": text}, timeout=10)
+    except: pass
+
+# Quiz answers
+QUIZ_ANSWERS = ["Pumpkin", "Passport", "Mobile connectivity", "Orange", "Boarding pass"]
+
+def collect_flow(chat_id):
+    """Full collection flow: register -> verify -> games. Runs in background."""
+    try:
+        tg_send(chat_id, "🚀 بدأت! بسجل حساب جديد...")
+        tag = ''.join(random.choices('abcdefghijklmnopqrstuvwxyz0123456789', k=8))
+        email = f"{TM_NS}.{tag}@inbox.testmail.app"
+        password = "Aboud123!#"
+        
+        # Register
+        r = requests.post(f"{API}/api/customer/auth/register",
+            json={"name": "Collector", "email": email, "password": password},
+            headers={"Content-Type": "application/json"}, timeout=15)
+        if r.status_code != 200:
+            tg_send(chat_id, f"❌ التسجيل فشل: {r.text[:100]}")
+            return
+        
+        # Login
+        r = requests.post(f"{API}/api/customer/auth/login",
+            json={"email": email, "password": password},
+            headers={"Content-Type": "application/json"}, timeout=15)
+        j = r.json()
+        token = j.get("access_token") or j.get("token")
+        if not token:
+            tg_send(chat_id, "❌ الدخول فشل")
+            return
+        H = {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
+        tg_send(chat_id, f"✅ سجلت!\n📧 {email}\n🔑 {password}")
+        
+        # Send verification
+        requests.post(f"{API}/api/customer/auth/send-verification", json={"email": email}, headers=H, timeout=10)
+        tg_send(chat_id, "📬 بستنى كود التحقق...")
+        
+        # Poll testmail for code
+        tm_key = os.environ.get("TESTMAIL_API_KEY", "").strip()
+        code = None
+        for _ in range(20):
+            time.sleep(10)
+            try:
+                r = requests.get(f"https://api.testmail.app/api/json?apikey={tm_key}&namespace={TM_NS}&tag={tag}&pretty=true",
+                    headers={"Authorization": f"Bearer {tm_key}"}, timeout=15)
+                for em in r.json().get("emails", []):
+                    if "verif" in em.get("subject", "").lower():
+                        m = re.search(r'<div class="code">(\d{6})</div>', em.get("html", ""))
+                        if m:
+                            code = m.group(1)
+                            break
+                if code: break
+            except: pass
+        
+        if not code:
+            tg_send(chat_id, "❌ الكود موصلش")
+            return
+        
+        # Verify
+        r = requests.post(f"{API}/api/customer/auth/verify-email", json={"email": email, "code": code}, headers=H, timeout=10)
+        tg_send(chat_id, "✅ اتحقق! بلعب الألعاب...")
+        
+        # Riddle quiz
+        earned = 0
+        r = requests.get(f"{API}/api/customer/games/spooky-riddle", headers=H, timeout=10)
+        questions = r.json().get("questions", [])
+        for i, q in enumerate(questions):
+            qid = q["id"]
+            options = q.get("options", [])
+            answer = QUIZ_ANSWERS[i] if i < len(QUIZ_ANSWERS) else None
+            idx = options.index(answer) if answer in options else 0
+            r = requests.post(f"{API}/api/customer/games/spooky-riddle/answer",
+                json={"question_id": qid, "option": idx}, headers=H, timeout=10)
+            time.sleep(1)
+        
+        # Check riddle reward
+        r = requests.get(f"{API}/api/customer/games/spooky-riddle", headers=H, timeout=10)
+        # Treat
+        r = requests.post(f"{API}/api/customer/games/trick-or-treat/treat", json={}, headers=H, timeout=10)
+        # Trick (pumpkin 0)
+        r = requests.post(f"{API}/api/customer/games/trick-or-treat/trick", json={"pumpkin": 0}, headers=H, timeout=10)
+        
+        tg_send(chat_id, "✅ خلصت الألعاب! بستنى الرصيد...")
+        
+        # Wait for wallet
+        for _ in range(20):
+            time.sleep(30)
+            r = requests.get(f"{API}/api/customer/wallets/me", headers=H, timeout=10)
+            bal = float(r.json().get("balance", 0))
+            if bal >= 4:
+                tg_send(chat_id, f"🎉 الرصيد وصل: ${bal}!\n\n📧 {email}\n🔑 {password}\n\nافتح التطبيق وسجل دخول واشتري يدوي بالمحفظة.")
+                return
+        
+        tg_send(chat_id, f"⏳ الرصيد لسه موصلش. جرب تاني كمان شوية.\n📧 {email}\n🔑 {password}")
+    except Exception as e:
+        tg_send(chat_id, f"❌ خطأ: {str(e)[:100]}")
+
+@app.route("/telegram/webhook", methods=["POST"])
+def tg_webhook():
+    if not TG_API:
+        return jsonify({"error": "bot not configured"}), 500
+    update = request.get_json(silent=True) or {}
+    msg = update.get("message", {})
+    chat_id = msg.get("chat", {}).get("id")
+    text = msg.get("text", "").strip()
+    
+    if not chat_id: return jsonify({"ok": True})
+    
+    if text == "/start":
+        tg_send(chat_id, "🎃 أهلاً بيك في بوت تجميع رصيد eSIM World!\n\nالأوامر:\n/collect - ابدأ تجميع حساب جديد ($4)\n\nالبوت مفتوح للكل!")
+    elif text == "/collect":
+        tg_send(chat_id, "⏳ بدأت التجميع... هياخد كام دقيقة.")
+        t = threading.Thread(target=collect_flow, args=(chat_id,), daemon=True)
+        t.start()
+    else:
+        tg_send(chat_id, "استخدم /collect عشان تبدأ!")
+    
+    return jsonify({"ok": True})
+
+@app.route("/telegram/setwebhook")
+def tg_setwebhook():
+    """Helper to set webhook URL. Call once after deploy."""
+    if not TG_API:
+        return "Bot token not set!", 500
+    # Get public URL from request
+    base = request.host_url.rstrip("/")
+    url = f"{base}/telegram/webhook"
+    r = requests.post(f"{TG_API}/setWebhook", json={"url": url}, timeout=10)
+    return r.text
 
 @app.route("/")
 def index():
