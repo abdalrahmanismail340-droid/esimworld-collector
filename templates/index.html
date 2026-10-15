@@ -677,6 +677,21 @@ async function doPurchase(H, product, st, balance, coupon) {
   if (r.ok) {
     st.textContent = '🎉 اتشترت بنجاح!';
     log('🎉 Order created!', 'ok');
+    const orderId = j.id || j.order_id;
+
+    // Try checkout API to complete payment with wallet
+    if (orderId) {
+      log('💳 Trying checkout API...', 'info');
+      try {
+        const cr = await fetch(API + '/api/checkout_api', {
+          method: 'POST', headers: H,
+          body: JSON.stringify({order_id: orderId, payment_method: 'cashback'})
+        });
+        const cj = await cr.json();
+        log('Checkout: ' + JSON.stringify(cj).slice(0, 300), cr.ok ? 'ok' : 'err');
+      } catch(e) { log('Checkout error: ' + e.message, 'err'); }
+    }
+
     // Check wallet balance after purchase
     try {
       const wr = await fetch(API + '/api/customer/wallets/me', {headers: H});
