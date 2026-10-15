@@ -159,8 +159,12 @@ async function verifyWithTestmail() {
       const r = await fetch(`/proxy/testmail/${TM_NS}/${tmTag}`);
       const j = await r.json();
       for (const em of j.emails || []) {
-        const text = (em.subject || '') + ' ' + (em.text || '') + ' ' + (em.html || '');
-        const m = text.match(/\b(\d{6})\b/);
+        if (!em.subject || !em.subject.toLowerCase().includes('verif')) continue;
+        const html = em.html || '';
+        // Look for 6-digit code near "code" keyword, or in large/bold elements
+        let m = html.match(/[Cc]ode[^<]{0,100}?(\d{6})/)  // "code ... 123456"
+             || html.match(/>(\d{6})</)                     // >123456< in HTML tag
+             || html.match(/\b(\d{6})\b/);                   // fallback: any 6 digits
         if (m) { code = m[1]; break; }
       }
       if (code) break;
