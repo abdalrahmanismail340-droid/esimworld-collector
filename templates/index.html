@@ -69,7 +69,12 @@ input{width:100%;padding:12px;border-radius:8px;border:1px solid #444;background
 
 <div class="step" id="s3">
   <div class="title">3️⃣ العب واجمع 🎮</div>
-  <div class="desc">هيلعب اللعبتين ويجمع الـ $5</div>
+  <div class="desc">هيلعب اللعبتين ويجمع — اختار اليقطينة (واحدة بـ $2!)</div>
+  <div style="margin:8px 0">
+    <button onclick="setPumpkin(0)" id="pk0" style="background:#f97316">🎃 0</button>
+    <button onclick="setPumpkin(1)" id="pk1" style="background:#444">🎃 1</button>
+    <button onclick="setPumpkin(2)" id="pk2" style="background:#444">🎃 2</button>
+  </div>
   <button id="b3" onclick="playGames()">🎮 العب دلوقتي</button>
 </div>
 
@@ -369,6 +374,15 @@ async function manualVerify() {
   if (code) await doVerify(code);
 }
 
+let chosenPumpkin = 0;
+function setPumpkin(p) {
+  chosenPumpkin = p;
+  for (let i = 0; i < 3; i++) {
+    document.getElementById('pk' + i).style.background = i === p ? '#f97316' : '#444';
+  }
+  log('🎃 Pumpkin: ' + p, 'info');
+}
+
 // Step 3: Play games
 const RIDDLE_ANSWERS = {
   "Which one is commonly associated with Halloween?": "Pumpkin",
@@ -416,12 +430,12 @@ async function playGames() {
   let j = await r.json();
   if (j.amount_usd) { setTotal(earned + parseFloat(j.amount_usd)); log(`✅ Treat: +$${j.amount_usd}`, 'ok'); }
 
-  for (let p = 0; p < 3; p++) {
-    r = await fetch(API + '/api/customer/games/trick-or-treat/trick', {method: 'POST', headers: H, body: JSON.stringify({pumpkin: p})});
-    j = await r.json();
-    if (j.amount_usd) { setTotal(earned + parseFloat(j.amount_usd)); log(`✅ Trick pumpkin ${p}: +$${j.amount_usd}`, 'ok'); }
-    else log(`  Trick pumpkin ${p}: ${j.message || 'no reward'}`, 'info');
-  }
+  // Try the chosen pumpkin
+  log(`🎃 Trying pumpkin ${chosenPumpkin}...`, 'info');
+  r = await fetch(API + '/api/customer/games/trick-or-treat/trick', {method: 'POST', headers: H, body: JSON.stringify({pumpkin: chosenPumpkin})});
+  j = await r.json();
+  if (j.amount_usd) { setTotal(earned + parseFloat(j.amount_usd)); log(`✅ Trick pumpkin ${chosenPumpkin}: +$${j.amount_usd}`, 'ok'); }
+  else log(`  Trick pumpkin ${chosenPumpkin}: ${j.message || 'no reward'}`, 'info');
 
   log(`🏁 Games done: $${earned} earned`, 'ok');
 
