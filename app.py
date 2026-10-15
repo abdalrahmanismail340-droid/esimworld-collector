@@ -97,8 +97,8 @@ def collect_one(chat_id, n, total):
         # Poll testmail for code
         tm_key = os.environ.get("TESTMAIL_API_KEY", "").strip()
         code = None
-        for _ in range(20):
-            time.sleep(10)
+        for _ in range(24):
+            time.sleep(5)
             try:
                 r = api_call("GET", f"https://api.testmail.app/api/json?apikey={tm_key}&namespace={TM_NS}&tag={tag}&pretty=true",
                     headers={"Authorization": f"Bearer {tm_key}"}, timeout=15)
