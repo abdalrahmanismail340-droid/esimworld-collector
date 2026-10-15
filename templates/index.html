@@ -673,9 +673,20 @@ async function doPurchase(H, product, st, balance, coupon) {
     r = await fetch(API + '/api/orders', {method: 'POST', headers: H, body: JSON.stringify(body)});
   }
   const j = await r.json();
+  log('Order response: ' + JSON.stringify(j).slice(0, 400), r.ok ? 'ok' : 'err');
   if (r.ok) {
     st.textContent = '🎉 اتشترت بنجاح!';
     log('🎉 Order created!', 'ok');
+    // Check wallet balance after purchase
+    try {
+      const wr = await fetch(API + '/api/customer/wallets/me', {headers: H});
+      const wj = await wr.json();
+      const newBal = parseFloat(wj.balance || wj.available_balance || 0);
+      log(`💰 Wallet after purchase: $${newBal} (was $${balance})`, 'info');
+      if (newBal >= balance) {
+        log('⚠️ Money NOT deducted! Payment failed.', 'err');
+      }
+    } catch(e) {}
     document.getElementById('s4').classList.add('done');
   } else {
     st.textContent = '❌ فشل: ' + (j.message || r.status);
