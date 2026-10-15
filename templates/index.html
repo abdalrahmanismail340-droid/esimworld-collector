@@ -397,6 +397,15 @@ async function playGames() {
 
   // Trick or Treat - try all 3 pumpkins!
   log('🎃 Playing trick-or-treat...', 'info');
+  // First, GET the game info (might grant $1 just for viewing!)
+  r = await fetch(API + '/api/customer/games/trick-or-treat', {headers: H});
+  let gd = await r.json().catch(() => ({}));
+  log('Game info: ' + JSON.stringify(gd).slice(0, 300), 'info');
+  if (gd.amount_usd || gd.reward) {
+    const a = parseFloat(gd.amount_usd || (gd.reward && gd.reward.amount_usd) || 0);
+    if (a > 0) { setTotal(earned + a); log(`✅ Game view bonus: +$${a}`, 'ok'); }
+  }
+
   r = await fetch(API + '/api/customer/games/trick-or-treat/treat', {method: 'POST', headers: H, body: '{}'});
   let j = await r.json();
   if (j.amount_usd) { setTotal(earned + parseFloat(j.amount_usd)); log(`✅ Treat: +$${j.amount_usd}`, 'ok'); }
