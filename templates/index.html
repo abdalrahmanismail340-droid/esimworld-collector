@@ -85,6 +85,7 @@ input{width:100%;padding:12px;border-radius:8px;border:1px solid #444;background
 const API = '/proxy';
 const MAILTM = '/proxy/mailtm';
 let token = null, earned = 0, userEmail = null, mailtmToken = null;
+let savedPass = null, savedIdToken = null; // for re-login if token expires
 
 function log(m, c='info') {
   const d = document.createElement('div');
@@ -270,6 +271,7 @@ async function createAccount() {
     });
     j = await r.json();
     token = j.access_token || j.token;
+    savedPass = pass; // save for re-login
     if (!token) throw new Error('Login failed — لو الحساب موجود قبل كده، اكتب الباسورد الصح');
     log('✅ Logged in!', 'ok');
 
@@ -407,12 +409,27 @@ async function playGames() {
 
   log(`🏁 Games done: $${earned} earned`, 'ok');
 
-  // Auto-poll wallet until $5
+  // Auto-poll wallet until $5 (with auto re-login on 401)
   log('⏳ Auto-checking wallet every 30s...', 'info');
   btn.textContent = '⏳ بيشيك على المحفظة أوتوماتيك...';
   const pollWallet = async () => {
     try {
-      const wr = await fetch(API + '/api/customer/wallets/me', {headers: H});
+      let H2 = {Authorization: 'Bearer ' + token, 'Content-Type': 'application/json'};
+      let wr = await fetch(API + '/api/customer/wallets/me', {headers: H2});
+      if (wr.status === 401 && savedPass && userEmail) {
+        log('🔄 Token expired, re-logging in...', 'info');
+        const lr = await fetch(API + '/api/customer/auth/login', {
+          method: 'POST', headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({email: userEmail, password: savedPass})
+        });
+        const lj = await lr.json();
+        token = lj.access_token || lj.token;
+        if (token) {
+          log('✅ Re-logged in', 'ok');
+          H2 = {Authorization: 'Bearer ' + token, 'Content-Type': 'application/json'};
+          wr = await fetch(API + '/api/customer/wallets/me', {headers: H2});
+        }
+      }
       const wj = await wr.json();
       const bal = parseFloat(wj.balance || wj.available_balance || 0);
       setTotal(bal);
@@ -422,7 +439,7 @@ async function playGames() {
         btn.textContent = '🎮 العب دلوقتي'; btn.disabled = false;
         done('s3');
         document.getElementById('s4').classList.add('active');
-        autoBuy(H);
+        autoBuy(H2);
         return;
       }
     } catch(e) { log('⚠️ Wallet check failed, retrying...', 'err'); }
