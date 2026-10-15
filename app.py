@@ -32,6 +32,25 @@ def safe_json(r, step):
     except Exception as e:
         raise Exception(f"{step}: رد السيرفر مش JSON (HTTP {r.status_code}, أول 50 حرف: {r.text[:50]})")
 
+def api_call(method, url, max_retries=3, **kwargs):
+    """API call with automatic retry on timeout/connection errors."""
+    import time as _time
+    kwargs.setdefault("timeout", 30)
+    last_err = None
+    for attempt in range(max_retries):
+        try:
+            r = requests.request(method, url, **kwargs)
+            # Retry on 429 (rate limit) and 5xx
+            if r.status_code == 429 or r.status_code >= 500:
+                last_err = f"HTTP {r.status_code}"
+                _time.sleep(2 * (attempt + 1))
+                continue
+            return r
+        except (requests.exceptions.Timeout, requests.exceptions.ConnectionError) as e:
+            last_err = str(e)[:60]
+            _time.sleep(2 * (attempt + 1))
+    raise Exception(f"فشل بعد {max_retries} محاولات: {last_err}")
+
 def collect_one(chat_id, n, total):
     """Create a single account. Called in parallel."""
     try:
@@ -42,7 +61,7 @@ def collect_one(chat_id, n, total):
         password = "Aboud123!#"
 
         # Register
-        r = requests.post(f"{API}/api/customer/auth/register",
+        r = api_call("POST", f"{API}/api/customer/auth/register",
             json={"name": "Collector", "email": email, "password": password},
             headers={"Content-Type": "application/json"}, timeout=15)
         if r.status_code != 200:
@@ -50,7 +69,7 @@ def collect_one(chat_id, n, total):
             return
 
         # Login
-        r = requests.post(f"{API}/api/customer/auth/login",
+        r = api_call("POST", f"{API}/api/customer/auth/login",
             json={"email": email, "password": password},
             headers={"Content-Type": "application/json"}, timeout=15)
         j = safe_json(r, "تسجيل الدخول")
@@ -61,7 +80,7 @@ def collect_one(chat_id, n, total):
         H = {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
 
         # Send verification
-        requests.post(f"{API}/api/customer/auth/send-verification", json={"email": email}, headers=H, timeout=10)
+        api_call("POST", f"{API}/api/customer/auth/send-verification", json={"email": email}, headers=H, timeout=10)
 
         # Poll testmail for code
         tm_key = os.environ.get("TESTMAIL_API_KEY", "").strip()
@@ -69,7 +88,7 @@ def collect_one(chat_id, n, total):
         for _ in range(20):
             time.sleep(10)
             try:
-                r = requests.get(f"https://api.testmail.app/api/json?apikey={tm_key}&namespace={TM_NS}&tag={tag}&pretty=true",
+                r = api_call("GET", f"https://api.testmail.app/api/json?apikey={tm_key}&namespace={TM_NS}&tag={tag}&pretty=true",
                     headers={"Authorization": f"Bearer {tm_key}"}, timeout=15)
                 for em in safe_json(r, "قراءة الإيميل").get("emails", []):
                     if "verif" in em.get("subject", "").lower():
@@ -85,23 +104,23 @@ def collect_one(chat_id, n, total):
             return
 
         # Verify
-        requests.post(f"{API}/api/customer/auth/verify-email", json={"email": email, "code": code}, headers=H, timeout=10)
+        api_call("POST", f"{API}/api/customer/auth/verify-email", json={"email": email, "code": code}, headers=H, timeout=10)
 
         # Riddle quiz
-        r = requests.get(f"{API}/api/customer/games/spooky-riddle", headers=H, timeout=10)
+        r = api_call("GET", f"{API}/api/customer/games/spooky-riddle", headers=H, timeout=10)
         questions = safe_json(r, "جلب الأسئلة").get("questions", [])
         for i, q in enumerate(questions):
             qid = q["id"]
             options = q.get("options", [])
             answer = QUIZ_ANSWERS[i] if i < len(QUIZ_ANSWERS) else None
             idx = options.index(answer) if answer in options else 0
-            requests.post(f"{API}/api/customer/games/spooky-riddle/answer",
+            api_call("POST", f"{API}/api/customer/games/spooky-riddle/answer",
                 json={"question_id": qid, "option": idx}, headers=H, timeout=10)
             time.sleep(1)
 
         # Treat + Trick
-        requests.post(f"{API}/api/customer/games/trick-or-treat/treat", json={}, headers=H, timeout=10)
-        requests.post(f"{API}/api/customer/games/trick-or-treat/trick", json={"pumpkin": 0}, headers=H, timeout=10)
+        api_call("POST", f"{API}/api/customer/games/trick-or-treat/treat", json={}, headers=H, timeout=10)
+        api_call("POST", f"{API}/api/customer/games/trick-or-treat/trick", json={"pumpkin": 0}, headers=H, timeout=10)
 
         tg_send(chat_id, f"\u2705 الحساب {n+1} خلص!\n\U0001f4e7 {email}\n\U0001f511 {password}")
     except Exception as e:
