@@ -26,15 +26,15 @@ def proxy(subpath):
     elif subpath.startswith("testmail/"):
         # testmail.app proxy - API key from env
         import os
-        tm_key = os.environ.get("TESTMAIL_API_KEY", "")
+        tm_key = os.environ.get("TESTMAIL_API_KEY", "").strip()
         # subpath is testmail/<namespace>/<tag> -> query API
         parts = subpath[9:].split("/")
         ns = parts[0] if len(parts) > 0 else ""
         tag = parts[1] if len(parts) > 1 else ""
         target = f"https://api.testmail.app/api/json?apikey={tm_key}&namespace={ns}&tag={tag}&pretty=true"
-        # GET request to testmail
+        # GET request to testmail with Bearer header too
         try:
-            r = requests.get(target, timeout=30)
+            r = requests.get(target, headers={"Authorization": f"Bearer {tm_key}"}, timeout=30)
             return (r.text, r.status_code, {"Content-Type": "application/json"})
         except Exception as e:
             return jsonify({"error": str(e)}), 502
