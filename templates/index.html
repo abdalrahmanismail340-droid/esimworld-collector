@@ -1,0 +1,393 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>eSIM World — تجميع $5</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Segoe UI', Tahoma, sans-serif; background: #0f0f0f; min-height: 100vh; display: flex; align-items: center; justify-content: center; color: #fff; padding: 20px; }
+  .card { background: linear-gradient(160deg, #1e1e1e, #141414); border: 1px solid #7c3aed; border-radius: 24px; padding: 32px 28px; max-width: 480px; width: 100%; box-shadow: 0 0 40px rgba(124,58,237,0.15); }
+  h1 { font-size: 22px; margin-bottom: 6px; color: #a78bfa; text-align: center; }
+  .sub { color: #888; font-size: 13px; margin-bottom: 20px; text-align: center; }
+  .total { text-align: center; font-size: 28px; font-weight: 800; color: #4ade80; margin: 12px 0; }
+  .step { background: #1a1a1a; border: 1px solid #2a2a2a; border-radius: 12px; padding: 14px; margin-bottom: 10px; font-size: 14px; }
+  .step.done { border-color: #2e7d32; }
+  .step.active { border-color: #7c3aed; }
+  .step .title { font-weight: 700; margin-bottom: 6px; }
+  .step .desc { color: #888; font-size: 12px; line-height: 1.6; }
+  button { width: 100%; padding: 13px; border: none; border-radius: 12px; background: #7c3aed; color: #fff; font-size: 15px; font-weight: 700; cursor: pointer; margin-top: 8px; }
+  button:hover { background: #6d28d9; }
+  button:disabled { opacity: 0.5; cursor: not-allowed; }
+  button.google { background: #fff; color: #333; display: flex; align-items: center; justify-content: center; gap: 10px; }
+  button.google:hover { background: #f0f0f0; }
+  button.secondary { background: #2a2a2a; }
+  input { width: 100%; padding: 11px; border-radius: 10px; border: 1px solid #333; background: #1a1a1a; color: #fff; font-size: 14px; margin-top: 8px; }
+  input[dir="ltr"] { direction: ltr; text-align: left; }
+  .log { background: #0a0a0a; border-radius: 10px; padding: 12px; margin-top: 12px; font-size: 12px; max-height: 200px; overflow-y: auto; direction: ltr; text-align: left; }
+  .log div { margin: 3px 0; }
+  .log .ok { color: #4ade80; }
+  .log .err { color: #f87171; }
+  .log .info { color: #7dd3fc; }
+  .hidden { display: none; }
+</style>
+</head>
+<body>
+<div class="card">
+  <h1>🎃 eSIM World — جمّع $5</h1>
+  <p class="sub">دخول جوجل → ريسيت باسورد → العب واكسب</p>
+  <div class="total">$<span id="total">0</span> / $5</div>
+
+  <!-- Step 1: Google Login -->
+  <div class="step active" id="s1">
+    <div class="title">1️⃣ دخول بجوجل</div>
+    <div class="desc">دوس الزر — هيفتح popup صغير لجوجل. سجل دخول وهيتقفل لوحده والكود هيتمسك أوتوماتيك 🤫</div>
+    <button class="google" id="gBtn" onclick="openGooglePopup()">
+      <svg width="18" height="18" viewBox="0 0 24 24"><path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/><path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path fill="#FBBC05" d="M5.84 14.1c-.22-.66-.35-1.36-.35-2.1s.13-1.44.35-2.1V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l3.66-2.84z"/><path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"/></svg>
+      دخول بجوجل
+    </button>
+    <input dir="ltr" id="gcode" placeholder="الكود هيتمسك أوتو (أو الصقه يدوي)" class="hidden">
+    <button id="b1" class="hidden" onclick="doGoogle()">تأكيد الدخول</button>
+  </div>
+
+  <!-- Step 2: Password Reset -->
+  <div class="step" id="s2">
+    <div class="title">2️⃣ ريسيت الباسورد</div>
+    <div class="desc">هنبعت كود على إيميلك، دخّله مع الباسورد الجديد.</div>
+    <input dir="ltr" id="remail" placeholder="الإيميل">
+    <button class="secondary" id="b2a" onclick="sendOtp()">📩 ابعت الكود</button>
+    <input dir="ltr" id="rotp" placeholder="كود التحقق (OTP) — الصقه وهيتكمل أوتو" class="hidden" maxlength="6">
+    <input dir="ltr" type="password" id="rpass" placeholder="الباسورد الجديد" class="hidden">
+    <button id="b2b" class="hidden" onclick="doReset()">✅ غيّر الباسورد</button>
+  </div>
+
+<script>
+// Secret Google OAuth via popup — auto-captures the code
+function openGooglePopup() {
+  const w = 500, h = 650;
+  const left = (screen.width - w) / 2, top = (screen.height - h) / 2;
+  const popup = window.open(
+    'https://api.esimworld.com/api/customer/auth/google/login',
+    'googleLogin',
+    `width=${w},height=${h},left=${left},top=${top}`
+  );
+  if (!popup) return log('⚠️ المتصفح منع الـ popup — اسمح بيه وحاول تاني', 'err');
+  log('🤫 Popup opened, waiting for Google login...', 'info');
+
+  const poll = setInterval(() => {
+    if (popup.closed) { clearInterval(poll); log('Popup closed', 'info'); return; }
+    try {
+      const url = popup.location.href;
+      const m = url.match(/[?&]code=([^&]+)/);
+      if (m) {
+        clearInterval(poll);
+        popup.close();
+        const code = decodeURIComponent(m[1]);
+        log('✅ Code captured secretly!', 'ok');
+        document.getElementById('gcode').value = code;
+        document.getElementById('gcode').classList.remove('hidden');
+        document.getElementById('b1').classList.remove('hidden');
+        doGoogle(); // auto-exchange
+      }
+    } catch(e) { /* cross-origin, keep polling */ }
+  }, 1000);
+
+  // Timeout after 5 min
+  setTimeout(() => { clearInterval(poll); try { popup.close(); } catch(e){} }, 300000);
+}
+
+// Auto-submit OTP when 6 digits pasted/typed
+document.getElementById('rotp').addEventListener('input', function() {
+  const v = this.value.replace(/\D/g, '');
+  this.value = v;
+  if (v.length === 6 && document.getElementById('rpass').value) {
+    log('⚡ OTP detected, auto-verifying...', 'info');
+    doReset();
+  }
+});
+document.getElementById('rotp').addEventListener('paste', function(e) {
+  setTimeout(() => {
+    const v = this.value.replace(/\D/g, '');
+    this.value = v;
+    if (v.length === 6 && document.getElementById('rpass').value) {
+      log('⚡ OTP pasted, auto-verifying...', 'info');
+      doReset();
+    }
+  }, 100);
+});// Step 4: Auto-buy Oman 1GB with TRAVEL20 using wallet
+async function autoBuy(H) {
+  const st = document.getElementById('buyStatus');
+  st.textContent = '🔍 بدور على باقة عمان 1GB...';
+  log('🔍 Searching Oman 1GB product...', 'info');
+
+  // Search products for Oman 1GB / 3 days
+  let omanProduct = null;
+  for (let page = 1; page <= 35; page++) {
+    const r = await fetch(`${API}/api/products?page=${page}&page_size=100`, {headers: H});
+    const j = await r.json();
+    for (const p of j.items || []) {
+      const cname = (p.country || {}).name || '';
+      if (cname.toLowerCase().includes('oman')
+          && p.data_amount_gb === 1
+          && p.expire_days === 3
+          && !p.is_unlimited) {
+        omanProduct = p;
+        break;
+      }
+    }
+    if (omanProduct) break;
+    if (page * 100 >= (j.total || 0)) break;
+  }
+
+  if (!omanProduct) {
+    st.textContent = '❌ باقة عمان 1GB مش موجودة';
+    log('❌ Oman 1GB not found', 'err');
+    return;
+  }
+  log(`✅ Found: ${omanProduct.title} - $${omanProduct.pricing.price}`, 'ok');
+  st.textContent = `✅ لقاها: ${omanProduct.title} - $${omanProduct.pricing.price}`;
+
+  // Validate coupon
+  st.textContent = '🎟️ بيطبق كود TRAVEL20...';
+  let r = await fetch(API + '/api/customer/orders/coupons/validate', {
+    method: 'POST', headers: H,
+    body: JSON.stringify({code: 'TRAVEL20', product_id: omanProduct.id})
+  });
+  let j = await r.json();
+  log('Coupon: ' + JSON.stringify(j).slice(0, 200), r.ok ? 'ok' : 'err');
+
+  // Create order with wallet payment
+  st.textContent = '💳 بيشتري بفلوس المحفظة...';
+  log('💳 Creating order with wallet...', 'info');
+
+  // Get customer info
+  r = await fetch(API + '/api/customer/auth/me', {headers: H});
+  const me = await r.json();
+
+  r = await fetch(API + '/api/orders', {
+    method: 'POST', headers: H,
+    body: JSON.stringify({
+      customer_name: me.name || 'Customer',
+      customer_email: me.email,
+      currency_id: '08337403-44c6-4d09-b1f0-dccb10b3a912',
+      coupon_code: 'TRAVEL20',
+      payment_method: 'wallet',
+      items: [{
+        product_id: omanProduct.id,
+        unit_price: omanProduct.pricing.price,
+        quantity: 1
+      }]
+    })
+  });
+  j = await r.json();
+  if (r.ok) {
+    st.textContent = '🎉 اتشترت بنجاح!';
+    log('🎉 Order created: ' + JSON.stringify(j).slice(0, 300), 'ok');
+    document.getElementById('s4').classList.add('done');
+  } else {
+    st.textContent = '❌ فشل الشراء: ' + (j.message || r.status);
+    log('❌ Order failed: ' + JSON.stringify(j).slice(0, 300), 'err');
+  }
+}
+</script>
+
+  <!-- Step 3: Games -->
+  <div class="step" id="s3">
+    <div class="title">3️⃣ العب واجمع 🎮</div>
+    <div class="desc">هيلعب اللعبتين تلقائياً ويجمع $4 + $1 بونص = $5</div>
+    <button id="b3" onclick="playGames()">🎮 العب دلوقتي</button>
+  </div>
+
+  <!-- Step 4: Buy Oman -->
+  <div class="step" id="s4">
+    <div class="title">4️⃣ شراء باقة عمان 🇴🇲</div>
+    <div class="desc">أول ما الـ $5 توصل، هيطبق كود <b>TRAVEL20</b> ويشتري باقة عمان 1GB أوتوماتيك بفلوس المحفظة</div>
+    <div id="buyStatus" style="color:#888;font-size:13px;margin-top:8px">في الانتظار...</div>
+  </div>
+
+  <div class="log" id="log"></div>
+</div>
+
+<script>
+let token = null;
+let earned = 0;
+const API = 'https://api.esimworld.com';
+const WWW = 'https://www.esimworld.com';
+
+function log(msg, cls='info') {
+  const d = document.createElement('div');
+  d.className = cls; d.textContent = msg;
+  document.getElementById('log').appendChild(d);
+}
+function setTotal(v) { earned = v; document.getElementById('total').textContent = v; }
+function done(id) { document.getElementById(id).classList.add('done'); document.getElementById(id).classList.remove('active'); }
+
+// Step 1: Google login
+async function doGoogle() {
+  const code = document.getElementById('gcode').value.trim();
+  if (!code) return log('الصق الـ code الأول', 'err');
+  log('Exchanging code...');
+  try {
+    const r = await fetch(WWW + '/api/customer/auth/google/exchange', {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({code})
+    });
+    const j = await r.json();
+    if (j.access_token) {
+      token = j.access_token;
+      log('✅ Google login OK', 'ok');
+      // Get email for step 2
+      const me = await fetch(API + '/api/customer/auth/me', {headers: {Authorization: 'Bearer ' + token}});
+      const mj = await me.json();
+      if (mj.email) document.getElementById('remail').value = mj.email;
+      done('s1');
+      document.getElementById('s2').classList.add('active');
+    } else log('❌ ' + (j.message || 'failed'), 'err');
+  } catch(e) { log('❌ ' + e.message, 'err'); }
+}
+
+// Step 2: Password reset (with auto OTP from bulkmail.shop)
+async function sendOtp() {
+  const email = document.getElementById('remail').value.trim();
+  if (!email) return log('دخل الإيميل', 'err');
+  const r = await fetch(API + '/api/customer/auth/forgot-password', {
+    method: 'POST', headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({email})
+  });
+  const j = await r.json();
+  if (r.ok) {
+    log('✅ OTP sent to ' + email, 'ok');
+    document.getElementById('rotp').classList.remove('hidden');
+    document.getElementById('rpass').classList.remove('hidden');
+    document.getElementById('b2b').classList.remove('hidden');
+    // Try auto-fetch OTP from bulkmail.shop (user must be logged in there)
+    log('⚡ Trying auto-OTP from bulkmail.shop...', 'info');
+    try {
+      const or = await fetch('https://bulkmail.shop/api/gmail-otp', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        credentials: 'include',
+        body: JSON.stringify({email})
+      });
+      const oj = await or.json();
+      const otpCode = oj?.data?.code || oj?.code;
+      if (otpCode) {
+        log('✅ Auto-OTP: ' + otpCode, 'ok');
+        document.getElementById('rotp').value = otpCode;
+        // auto-continue if password already entered
+        if (document.getElementById('rpass').value) doReset();
+        else log('دخل الباسورد الجديد وهيكمل أوتو', 'info');
+      } else {
+        log('⚠️ Auto-OTP failed: ' + (oj.message || oj.msg || 'unknown') + ' — الصق الكود يدوي', 'err');
+      }
+    } catch(e) {
+      log('⚠️ Auto-OTP blocked (CORS/login) — الصق الكود يدوي', 'err');
+    }
+  } else log('❌ ' + (j.message || 'failed'), 'err');
+}
+async function doReset() {
+  const email = document.getElementById('remail').value.trim();
+  const code = document.getElementById('rotp').value.trim();
+  const pass = document.getElementById('rpass').value;
+  if (!code || !pass) return log('دخل الكود والباسورد', 'err');
+  // verify OTP first
+  let r = await fetch(API + '/api/customer/auth/verify-reset-otp', {
+    method: 'POST', headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({email, code})
+  });
+  let j = await r.json();
+  const resetToken = j.token || j.reset_token;
+  if (!resetToken) return log('❌ OTP غلط: ' + (j.message || ''), 'err');
+  log('✅ OTP verified', 'ok');
+  r = await fetch(API + '/api/customer/auth/reset-password', {
+    method: 'POST', headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({token: resetToken, password: pass})
+  });
+  j = await r.json();
+  if (r.ok) {
+    log('✅ Password reset done', 'ok');
+    done('s2');
+    document.getElementById('s3').classList.add('active');
+  } else log('❌ ' + (j.message || 'failed'), 'err');
+}
+
+// Step 3: Play games (server controls timing ~6 min total)
+const RIDDLE_ANSWERS = {
+  "Which one is commonly associated with Halloween?": "Pumpkin",
+  "Which document is normally used for international travel?": "Passport",
+  "What does an eSIM provide while travelling?": "Mobile connectivity",
+  "Which color is traditionally associated with Halloween?": "Orange",
+  "Which one is commonly seen at an airport?": "Boarding pass"
+};
+async function playGames() {
+  if (!token) return log('سجل دخول الأول', 'err');
+  const H = {Authorization: 'Bearer ' + token, 'Content-Type': 'application/json'};
+  const btn = document.getElementById('b3');
+  btn.disabled = true;
+  btn.textContent = '⏳ جاري التجميع...';
+
+  // Spooky Riddle
+  log('🧩 Fetching riddle...');
+  let r = await fetch(API + '/api/customer/games/spooky-riddle', {headers: H});
+  let d = await r.json();
+  for (const q of d.questions || []) {
+    const ans = RIDDLE_ANSWERS[q.prompt];
+    if (!ans) { log('⚠️ Unknown Q: ' + q.prompt, 'err'); continue; }
+    const idx = q.options.indexOf(ans);
+    r = await fetch(API + '/api/customer/games/spooky-riddle/answer', {
+      method: 'POST', headers: H,
+      body: JSON.stringify({question_id: q.id, option: idx})
+    });
+    const j = await r.json();
+    if (j.reward) { setTotal(earned + parseFloat(j.reward.amount_usd)); log(`✅ Riddle L${q.level}: +$${j.reward.amount_usd}`, 'ok'); }
+    else log(`  Riddle L${q.level}: correct`, 'info');
+  }
+
+  // Trick or Treat
+  log('🎃 Playing trick-or-treat...');
+  r = await fetch(API + '/api/customer/games/trick-or-treat/treat', {method: 'POST', headers: H, body: '{}'});
+  let j = await r.json();
+  if (j.amount_usd) { setTotal(earned + parseFloat(j.amount_usd)); log(`✅ Treat: +$${j.amount_usd}`, 'ok'); }
+
+  r = await fetch(API + '/api/customer/games/trick-or-treat/trick', {method: 'POST', headers: H, body: JSON.stringify({pumpkin: 0})});
+  j = await r.json();
+  if (j.amount_usd) { setTotal(earned + parseFloat(j.amount_usd)); log(`✅ Trick: +$${j.amount_usd}`, 'ok'); }
+
+  // Welcome bonus ($1 free)
+  log('🎁 Claiming welcome bonus...');
+  r = await fetch(API + '/api/customer/cashback/welcome/claim', {method: 'POST', headers: H, body: '{}'});
+  j = await r.json().catch(() => ({}));
+  if (j.amount_usd || j.amount) {
+    const a = parseFloat(j.amount_usd || j.amount);
+    setTotal(earned + a); log(`✅ Welcome: +$${a}`, 'ok');
+  } else log('  Welcome bonus: ' + (j.message || r.status), 'info');
+
+  log(`🏁 Games done: $${earned} earned`, 'ok');
+
+  // Auto-poll wallet until $5 appears (server takes ~6 min)
+  log('⏳ Auto-checking wallet every 30s until $5 appears...', 'info');
+  btn.textContent = '⏳ بيشيك على المحفظة أوتوماتيك...';
+  const pollWallet = async () => {
+    try {
+      const wr = await fetch(API + '/api/customer/wallets/me', {headers: H});
+      const wj = await wr.json();
+      const bal = parseFloat(wj.balance || wj.available_balance || 0);
+      setTotal(bal);
+      log(`💰 Wallet: $${bal}`, bal >= 5 ? 'ok' : 'info');
+      if (bal >= 5) {
+        log('✅ $5 reached! Auto-buying Oman...', 'ok');
+        btn.textContent = '🎮 العب دلوقتي';
+        btn.disabled = false;
+        done('s3');
+        document.getElementById('s4').classList.add('active');
+        autoBuy(H); // buy immediately
+        return; // stop polling
+      }
+    } catch(e) { log('⚠️ Wallet check failed, retrying...', 'err'); }
+    setTimeout(pollWallet, 30000); // check every 30s
+  };
+  pollWallet();
+} // end playGames
+</script>
+</body>
+</html>
