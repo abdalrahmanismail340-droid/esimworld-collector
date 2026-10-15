@@ -144,9 +144,9 @@ def tg_setwebhook():
     """Helper to set webhook URL. Call once after deploy."""
     if not TG_API:
         return "Bot token not set!", 500
-    # Get public URL from request
-    base = request.host_url.rstrip("/")
-    url = f"{base}/telegram/webhook"
+    # Force HTTPS (Railway terminates TLS at LB, Flask sees http internally)
+    host = request.host
+    url = f"https://{host}/telegram/webhook"
     r = requests.post(f"{TG_API}/setWebhook", json={"url": url}, timeout=10)
     return r.text
 
