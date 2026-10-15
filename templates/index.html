@@ -88,7 +88,7 @@ input{width:100%;padding:12px;border-radius:8px;border:1px solid #444;background
   <div class="desc">لو $5 → عمان 1GB/3أيام بـ TRAVEL20<br>لو أقل → السعودية 1GB/يوم بالرصيد المتاح</div>
   <div style="margin:8px 0">
     <button onclick="setBuyMode('oman')" id="modeOman" style="background:#f97316;margin-bottom:4px">🇴🇲 عمان 1GB/3أيام ($5)</button>
-    <button onclick="setBuyMode('saudi')" id="modeSaudi" style="background:#444">🇸🇦 السعودية يوم واحد (بالرصيد المتاح)</button>
+    <button onclick="setBuyMode('saudi')" id="modeSaudi" style="background:#444">🇸🇦 السعودية 1GB (بالرصيد المتاح)</button>
   </div>
   <div id="buyStatus" style="color:#888;font-size:13px">في الانتظار...</div>
   <button onclick="checkRewards()" style="background:#444;margin-top:8px">🔍 فحص حالة الجوائز</button>
@@ -470,8 +470,8 @@ async function playGames() {
       const bal = parseFloat(wj.balance || wj.available_balance || 0);
       setTotal(bal);
       log(`💰 Wallet: $${bal}`, bal >= 4 ? 'ok' : 'info');
-      // Buy when: $5 for Oman/Saudi-1day
-      const target = 5;
+      // Buy when: $5 for Oman, or $4+ for Saudi (if saudi mode)
+      const target = (buyMode === 'saudi') ? 4 : 5;
       if (bal >= target) {
         log(`✅ $${bal} reached! Auto-buying (${buyMode})...`, 'ok');
         btn.textContent = '🎮 العب دلوقتي'; btn.disabled = false;
@@ -608,9 +608,9 @@ async function autoBuy(H, balance) {
   const st = document.getElementById('buyStatus');
 
   if (buyMode === 'saudi' || balance < 5) {
-    // Saudi 1-DAY plan with available balance
-    st.textContent = '🔍 بدور على باقة السعودية يوم واحد...';
-    log('🔍 Searching Saudi 1-day plan...', 'info');
+    // Saudi 1GB plan with available balance ($3.38)
+    st.textContent = '🔍 بدور على باقة السعودية 1GB...';
+    log('🔍 Searching Saudi 1GB plan...', 'info');
     let product = null;
     for (let page = 1; page <= 35; page++) {
       const r = await fetch(`${API}/api/products?page=${page}&page_size=100`, {headers: H});
@@ -618,7 +618,7 @@ async function autoBuy(H, balance) {
       for (const p of j.items || []) {
         const cname = ((p.country || {}).name || '').toLowerCase();
         if ((cname.includes('saudi') || cname.includes('saud'))
-            && p.expire_days === 1
+            && p.data_amount_gb === 1 && !p.is_unlimited
             && parseFloat(p.pricing.price) <= balance) {
           if (!product || parseFloat(p.pricing.price) < parseFloat(product.pricing.price)) product = p;
         }
