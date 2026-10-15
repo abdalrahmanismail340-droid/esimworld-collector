@@ -31,16 +31,33 @@ input{width:100%;padding:12px;border-radius:8px;border:1px solid #444;background
 
 <div class="step active" id="s1">
   <div class="title">1️⃣ إنشاء حساب 📧</div>
-  <div class="desc">دخل بيانات حساب eSIM World الجديد (إيميل حقيقي من bulkmail.shop)</div>
-  <div style="font-size:12px;color:#888;margin-bottom:4px">📧 إيميل eSIM World:</div>
-  <input dir="ltr" id="userEmail" placeholder="you@example.com" style="margin-top:0">
-  <div style="font-size:12px;color:#888;margin-bottom:4px;margin-top:8px">🔑 باسورد eSIM World <span style="color:#666">(جديد، منفصل عن أي حاجة تانية):</span></div>
-  <input dir="ltr" id="userPass" type="text" placeholder="لازم special character مثل !#@" style="margin-top:0">
-  <div style="font-size:11px;color:#666;margin-top:4px">شروط الباسورد: 8 حروف على الأقل + حرف مميز (! # @)</div>
-  <div style="font-size:11px;color:#666;margin-top:8px;border-top:1px solid #333;padding-top:8px">💡 ملحوظة: bulkmail.shop بتتقرا من السيشن بتاعك في المتصفح — بس لو عايز تدخل باسورد الإيميل نفسه:</div>
-  <div style="font-size:12px;color:#888;margin-bottom:4px;margin-top:8px">📬 باسورد الإيميل (اختياري، لوحده):</div>
-  <input dir="ltr" id="emailPass" type="text" placeholder="باسورد الإيميل نفسه" style="margin-top:0">
-  <button id="b1" onclick="createAccount()">🚀 سجل</button>
+  <div class="desc">اختار طريقة التسجيل:</div>
+  <button onclick="showEmailForm()" style="background:#444;margin-bottom:8px">📧 إيميل + باسورد</button>
+  <button onclick="showGoogleForm()" style="background:#4285F4">🔵 جوجل (ID Token)</button>
+
+  <div id="emailForm" class="hidden" style="margin-top:12px">
+    <div style="font-size:12px;color:#888;margin-bottom:4px">📧 إيميل eSIM World:</div>
+    <input dir="ltr" id="userEmail" placeholder="you@example.com" style="margin-top:0">
+    <div style="font-size:12px;color:#888;margin-bottom:4px;margin-top:8px">🔑 باسورد eSIM World:</div>
+    <input dir="ltr" id="userPass" type="text" placeholder="لازم special character مثل !#@" style="margin-top:0">
+    <div style="font-size:12px;color:#888;margin-bottom:4px;margin-top:8px">📬 باسورد الإيميل (اختياري):</div>
+    <input dir="ltr" id="emailPass" type="text" placeholder="باسورد الإيميل نفسه" style="margin-top:0">
+    <button id="b1" onclick="createAccount()">🚀 سجل بالإيميل</button>
+  </div>
+
+  <div id="googleForm" class="hidden" style="margin-top:12px">
+    <div style="font-size:12px;color:#aaa;margin-bottom:8px">
+      هات الـ ID Token من:<br>
+      1. افتح <a href="https://developers.google.com/oauthplayground" target="_blank" style="color:#60a5fa">Google OAuth Playground</a><br>
+      2. اختار <b>OpenID Connect</b> → علم على <b>openid email profile</b><br>
+      3. دوس <b>Authorize APIs</b> وسجل دخول<br>
+      4. دوس <b>Exchange</b> → انسخ الـ <b>ID token</b><br>
+      5. الصقه تحت
+    </div>
+    <div style="font-size:12px;color:#888;margin-bottom:4px">🔵 Google ID Token:</div>
+    <textarea dir="ltr" id="gidToken" rows="3" style="width:100%;padding:12px;border-radius:8px;border:1px solid #444;background:#222;color:#fff;font-size:12px" placeholder="الصق الـ ID token هنا"></textarea>
+    <button onclick="registerWithGoogle()">🚀 سجل بجوجل</button>
+  </div>
 </div>
 
 <div class="step" id="s2">
@@ -77,6 +94,57 @@ function log(m, c='info') {
 function setTotal(v) { earned = v; document.getElementById('total').textContent = v.toFixed(2); }
 function done(id) { document.getElementById(id).classList.add('done'); document.getElementById(id).classList.remove('active'); }
 const sleep = ms => new Promise(r => setTimeout(r, ms));
+
+function showEmailForm() {
+  document.getElementById('emailForm').classList.remove('hidden');
+  document.getElementById('googleForm').classList.add('hidden');
+}
+function showGoogleForm() {
+  document.getElementById('googleForm').classList.remove('hidden');
+  document.getElementById('emailForm').classList.add('hidden');
+}
+
+async function registerWithGoogle() {
+  const idToken = document.getElementById('gidToken').value.trim();
+  if (!idToken) return log('❌ الصق الـ ID token الأول', 'err');
+  log('🔵 Registering with Google...', 'info');
+  try {
+    const r = await fetch(API + '/api/customer/auth/register', {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({id_token: idToken, name: 'Google User'})
+    });
+    const j = await r.json();
+    if (!r.ok) throw new Error(j.message || r.status);
+
+    token = j.access_token || j.token;
+    // Extract email from ID token (it's a JWT)
+    try {
+      const payload = JSON.parse(atob(idToken.split('.')[1]));
+      userEmail = payload.email;
+      log(`✅ Registered as ${userEmail}`, 'ok');
+    } catch(e) { log('✅ Registered with Google!', 'ok'); }
+
+    if (!token) {
+      // Try login with the token
+      const lr = await fetch(API + '/api/customer/auth/login', {
+        method: 'POST', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({id_token: idToken})
+      });
+      const lj = await lr.json();
+      token = lj.access_token || lj.token;
+    }
+    if (!token) throw new Error('No token received');
+    log('✅ Logged in with Google!', 'ok');
+    done('s1');
+    document.getElementById('s2').classList.add('active');
+    // Google accounts are pre-verified, skip to games
+    log('⏭️ Google email is pre-verified, skipping to games', 'ok');
+    document.getElementById('s2').classList.add('done');
+    document.getElementById('s3').classList.add('active');
+  } catch(e) {
+    log('❌ ' + e.message, 'err');
+  }
+}
 
 // Step 1: Register with user's real email (eSIM World blocks temp emails)
 async function createAccount() {
