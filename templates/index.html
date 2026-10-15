@@ -35,6 +35,10 @@ input{width:100%;padding:12px;border-radius:8px;border:1px solid #444;background
   <button onclick="showEmailForm()" style="background:#444;margin-bottom:8px">📧 إيميل + باسورد</button>
   <button onclick="showGoogleForm()" style="background:#4285F4;margin-bottom:8px">🔵 جوجل (ID Token)</button>
   <button onclick="registerWithTestmail()" style="background:#22c55e">⚡ إيميل تلقائي (testmail)</button>
+  <div style="margin-top:8px">
+    <label style="font-size:12px">🔑 الباسورد الثابت للحسابات:</label>
+    <input type="text" id="fixedPass" value="Aboud123!#" style="font-size:13px">
+  </div>
 
   <div id="emailForm" class="hidden" style="margin-top:12px">
     <div style="font-size:12px;color:#888;margin-bottom:4px">📧 إيميل eSIM World:</div>
@@ -119,8 +123,9 @@ async function registerWithTestmail() {
   try {
     tmTag = Math.random().toString(36).slice(2, 10);
     userEmail = `${TM_NS}.${tmTag}@inbox.testmail.app`;
-    const pass = 'Aa!' + Math.random().toString(36).slice(2, 8) + '#' + Math.random().toString(36).slice(2, 6);
+    const pass = document.getElementById('fixedPass').value || 'Aboud123!#';
     log(`📧 Email: ${userEmail}`, 'ok');
+    log(`🔑 Password: ${pass} (احفظه عشان تدخل بيه في التطبيق)`, 'info');
 
     // Register
     let r = await fetch(API + '/api/customer/auth/register', {
