@@ -25,6 +25,13 @@ def tg_send(chat_id, text):
 # Quiz answers
 QUIZ_ANSWERS = ["Pumpkin", "Passport", "Mobile connectivity", "Orange", "Boarding pass"]
 
+def safe_json(r, step):
+    """Parse JSON safely, raise with step name on failure."""
+    try:
+        return r.json()
+    except Exception as e:
+        raise Exception(f"{step}: رد السيرفر مش JSON (HTTP {r.status_code}, أول 50 حرف: {r.text[:50]})")
+
 def collect_flow(chat_id):
     """Full collection flow: register -> verify -> games. Runs in background."""
     try:
@@ -45,7 +52,7 @@ def collect_flow(chat_id):
         r = requests.post(f"{API}/api/customer/auth/login",
             json={"email": email, "password": password},
             headers={"Content-Type": "application/json"}, timeout=15)
-        j = r.json()
+        j = safe_json(r, "تسجيل الدخول")
         token = j.get("access_token") or j.get("token")
         if not token:
             tg_send(chat_id, "❌ الدخول فشل")
@@ -65,7 +72,7 @@ def collect_flow(chat_id):
             try:
                 r = requests.get(f"https://api.testmail.app/api/json?apikey={tm_key}&namespace={TM_NS}&tag={tag}&pretty=true",
                     headers={"Authorization": f"Bearer {tm_key}"}, timeout=15)
-                for em in r.json().get("emails", []):
+                for em in safe_json(r, "قراءة الإيميل").get("emails", []):
                     if "verif" in em.get("subject", "").lower():
                         m = re.search(r'<div class="code">(\d{6})</div>', em.get("html", ""))
                         if m:
@@ -108,7 +115,7 @@ def collect_flow(chat_id):
         for _ in range(20):
             time.sleep(30)
             r = requests.get(f"{API}/api/customer/wallets/me", headers=H, timeout=10)
-            bal = float(r.json().get("balance", 0))
+            bal = float(safe_json(r, "قراءة الرصيد").get("balance", 0))
             if bal >= 4:
                 tg_send(chat_id, f"🎉 الرصيد وصل: ${bal}!\n\n📧 {email}\n🔑 {password}\n\nافتح التطبيق وسجل دخول واشتري يدوي بالمحفظة.")
                 return
