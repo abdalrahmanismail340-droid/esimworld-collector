@@ -31,9 +31,10 @@ input{width:100%;padding:12px;border-radius:8px;border:1px solid #444;background
 
 <div class="step active" id="s1">
   <div class="title">1️⃣ إنشاء حساب 📧</div>
-  <div class="desc">هينشئ إيميل مؤقت (mail.tm) ويسجل بيه تلقائياً</div>
-  <button id="b1" onclick="createAccount()">🚀 ابدأ</button>
-  <div id="emailShow" style="font-size:12px;color:#888;margin-top:8px;direction:ltr"></div>
+  <div class="desc">دخل إيميل حقيقي (من bulkmail.shop) — eSIM World بيرفض الإيميلات المؤقتة</div>
+  <input dir="ltr" id="userEmail" placeholder="you@example.com">
+  <input dir="ltr" id="userPass" type="text" placeholder="الباسورد (أو سيبه فاضي وهيتعمل أوتو)">
+  <button id="b1" onclick="createAccount()">🚀 سجل</button>
 </div>
 
 <div class="step" id="s2">
@@ -71,69 +72,47 @@ function setTotal(v) { earned = v; document.getElementById('total').textContent 
 function done(id) { document.getElementById(id).classList.add('done'); document.getElementById(id).classList.remove('active'); }
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 
-// Step 1: Create mail.tm account + register on eSIM World
+// Step 1: Register with user's real email (eSIM World blocks temp emails)
 async function createAccount() {
   const btn = document.getElementById('b1');
-  btn.disabled = true; btn.textContent = '⏳ جاري الإنشاء...';
+  userEmail = document.getElementById('userEmail').value.trim();
+  let pass = document.getElementById('userPass').value.trim();
+  if (!userEmail || !userEmail.includes('@')) return log('❌ دخل إيميل صحيح', 'err');
+  if (!pass) { pass = 'Pass' + Math.random().toString(36).slice(2, 10) + '123!'; }
+
+  btn.disabled = true; btn.textContent = '⏳ جاري التسجيل...';
 
   try {
-    // 1. Get mail.tm domain
-    log('📧 Getting temp email...', 'info');
-    let r = await fetch(MAILTM + '/domains');
+    log(`📝 Registering ${userEmail}...`, 'info');
+    let r = await fetch(API + '/api/customer/auth/register', {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({name: 'User', email: userEmail, password: pass})
+    });
     let j = await r.json();
-    const domain = j['hydra:member'][0].domain;
+    if (!r.ok && !JSON.stringify(j).includes('already')) throw new Error('Register: ' + (j.message || r.status));
+    log('✅ Registered (or already exists)', 'ok');
 
-    // 2. Create mail.tm account
-    const rand = Math.random().toString(36).slice(2, 10);
-    userEmail = `${rand}@${domain}`;
-    const pass = 'Pass' + rand + '123!';
-    r = await fetch(MAILTM + '/accounts', {
-      method: 'POST', headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({address: userEmail, password: pass})
-    });
-    if (!r.ok) throw new Error('mail.tm account failed');
-    log(`✅ Temp email: ${userEmail}`, 'ok');
-    document.getElementById('emailShow').textContent = userEmail;
-
-    // 3. Get mail.tm token
-    r = await fetch(MAILTM + '/token', {
-      method: 'POST', headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({address: userEmail, password: pass})
-    });
-    j = await r.json();
-    mailtmToken = j.token;
-
-    // 4. Register on eSIM World
-    log('📝 Registering on eSIM World...', 'info');
-    r = await fetch(API + '/api/customer/auth/register', {
-      method: 'POST', headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({name: 'User ' + rand, email: userEmail, password: pass})
-    });
-    j = await r.json();
-    if (!r.ok) throw new Error('Register failed: ' + (j.message || r.status));
-    log('✅ Registered!', 'ok');
-
-    // 5. Login to get token
+    // Login
     r = await fetch(API + '/api/customer/auth/login', {
       method: 'POST', headers: {'Content-Type': 'application/json'},
       body: JSON.stringify({email: userEmail, password: pass})
     });
     j = await r.json();
     token = j.access_token || j.token;
-    if (!token) throw new Error('Login failed');
+    if (!token) throw new Error('Login failed — لو الحساب موجود قبل كده، اكتب الباسورد الصح');
     log('✅ Logged in!', 'ok');
 
     done('s1');
     document.getElementById('s2').classList.add('active');
-    verifyEmail(); // auto-start verification
+    verifyEmail();
 
   } catch(e) {
     log('❌ ' + e.message, 'err');
-    btn.disabled = false; btn.textContent = '🚀 ابدأ';
+    btn.disabled = false; btn.textContent = '🚀 سجل';
   }
 }
 
-// Step 2: Send verification code + read from mail.tm + verify
+// Step 2: Send verification + read code from bulkmail.shop API
 async function verifyEmail() {
   const st = document.getElementById('verifyStatus');
   const H = {Authorization: 'Bearer ' + token, 'Content-Type': 'application/json'};
@@ -145,57 +124,64 @@ async function verifyEmail() {
       method: 'POST', headers: H,
       body: JSON.stringify({email: userEmail})
     });
-    if (!r.ok) log('⚠️ Send verification: ' + r.status, 'err');
 
-    // Poll mail.tm for the code
-    st.textContent = '⏳ مستني الكود في الإيميل...';
-    log('⏳ Waiting for verification email...', 'info');
+    // Poll bulkmail.shop for the code (user must be logged in there)
+    st.textContent = '⏳ بيقرا الكود من bulkmail.shop...';
+    log('⏳ Reading OTP from bulkmail.shop...', 'info');
     let code = null;
-    for (let i = 0; i < 20; i++) {
-      await sleep(15000); // wait 15s between checks
-      r = await fetch(MAILTM + '/messages', {
-        headers: {Authorization: 'Bearer ' + mailtmToken}
-      });
-      const j = await r.json();
-      const msgs = j['hydra:member'] || [];
-      for (const m of msgs) {
-        // Get full message
-        const mr = await fetch(MAILTM + '/messages/' + m.id, {
-          headers: {Authorization: 'Bearer ' + mailtmToken}
+    for (let i = 0; i < 12; i++) {
+      await sleep(10000);
+      try {
+        const or = await fetch('https://bulkmail.shop/api/gmail-otp', {
+          method: 'POST', headers: {'Content-Type': 'application/json'},
+          credentials: 'include', body: JSON.stringify({email: userEmail})
         });
-        const full = await mr.json();
-        const text = JSON.stringify(full);
-        const match = text.match(/\b(\d{6})\b/);
-        if (match) { code = match[1]; break; }
-      }
-      if (code) break;
-      log(`  ...waiting (${i+1}/20)`, 'info');
+        const oj = await or.json();
+        code = oj.code || (oj.data && oj.data.code);
+        if (code) break;
+      } catch(e) {}
+      log(`  ...waiting (${i+1}/12)`, 'info');
     }
 
-    if (!code) throw new Error('Verification code not found in email');
+    if (!code) {
+      st.textContent = '⚠️ افتح bulkmail.shop وانسخ الكود يدوي';
+      log('⚠️ Auto-read failed — افتح bulkmail.shop وانسخ الكود', 'err');
+      st.innerHTML = 'انسخ الكود من bulkmail.shop:<br><input dir="ltr" id="manualCode" placeholder="الكود"><button onclick="manualVerify()">تحقق</button>';
+      return;
+    }
 
     st.textContent = '✅ لقى الكود: ' + code;
-    log(`✅ Code found: ${code}`, 'ok');
-
-    // Verify
-    r = await fetch(API + '/api/customer/auth/verify-email', {
-      method: 'POST', headers: H,
-      body: JSON.stringify({email: userEmail, code: code})
-    });
-    const j = await r.json();
-    if (r.ok) {
-      st.textContent = '🎉 الإيميل اتحقق!';
-      log('🎉 Email verified!', 'ok');
-      done('s2');
-      document.getElementById('s3').classList.add('active');
-    } else {
-      throw new Error('Verify failed: ' + (j.message || r.status));
-    }
+    log(`✅ Code: ${code}`, 'ok');
+    await doVerify(code);
 
   } catch(e) {
     st.textContent = '❌ ' + e.message;
     log('❌ ' + e.message, 'err');
   }
+}
+
+async function doVerify(code) {
+  const st = document.getElementById('verifyStatus');
+  const H = {Authorization: 'Bearer ' + token, 'Content-Type': 'application/json'};
+  const r = await fetch(API + '/api/customer/auth/verify-email', {
+    method: 'POST', headers: H,
+    body: JSON.stringify({email: userEmail, code: code})
+  });
+  const j = await r.json();
+  if (r.ok) {
+    st.textContent = '🎉 الإيميل اتحقق!';
+    log('🎉 Email verified!', 'ok');
+    done('s2');
+    document.getElementById('s3').classList.add('active');
+  } else {
+    st.textContent = '❌ فشل التحقق';
+    log('❌ Verify failed: ' + (j.message || r.status), 'err');
+  }
+}
+
+async function manualVerify() {
+  const code = document.getElementById('manualCode').value.trim();
+  if (code) await doVerify(code);
 }
 
 // Step 3: Play games
