@@ -143,11 +143,20 @@ def collect_one(chat_id, n, total):
             _t2.sleep(30)
             try:
                 r = api_call("GET", f"{API}/api/customer/wallets/me", headers=H, timeout=15)
+                # Re-login on 401 (token expired)
+                if r.status_code == 401:
+                    rl = api_call("POST", f"{API}/api/customer/auth/login",
+                        json={"email": email, "password": password},
+                        headers={"Content-Type": "application/json"}, timeout=15)
+                    token = safe_json(rl, "re-login").get("access_token")
+                    if token:
+                        H = {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
+                    continue
                 bal = float(safe_json(r, "قراءة الرصيد").get("balance", 0) or 0)
                 if bal >= 4:
                     tg_send(chat_id, f"\U0001f3c1 الرصيد وصل!\n\U0001f4e7 {email}\n\U0001f511 {password}\n\U0001f4b0 الرصيد: ${bal}")
                     break
-            except:
+            except Exception as e:
                 pass
         else:
             tg_send(chat_id, f"\u23f3 الرصيد لسه موصلش للحساب {n+1}\n\U0001f4e7 {email}\n\U0001f511 {password}")
