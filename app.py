@@ -66,6 +66,10 @@ def api_call(method, url, max_retries=5, **kwargs):
 def collect_one(chat_id, n, total):
     """Create a single account. Called in parallel."""
     try:
+        # Stagger start so parallel accounts don't hit register at the same instant (429s)
+        import random as _r0
+        _r0_time = __import__("time")
+        _r0_time.sleep(_r0.uniform(0, 3))
         if total > 1:
             tg_send(chat_id, f"\U0001f4dd الحساب {n+1}/{total}...")
         tag = ''.join(random.choices('abcdefghijklmnopqrstuvwxyz0123456789', k=8))
@@ -97,8 +101,8 @@ def collect_one(chat_id, n, total):
         # Poll testmail for code
         tm_key = os.environ.get("TESTMAIL_API_KEY", "").strip()
         code = None
-        for _ in range(24):
-            time.sleep(5)
+        for _ in range(40):
+            time.sleep(3)
             try:
                 r = api_call("GET", f"https://api.testmail.app/api/json?apikey={tm_key}&namespace={TM_NS}&tag={tag}&pretty=true",
                     headers={"Authorization": f"Bearer {tm_key}"}, timeout=15)
@@ -129,7 +133,6 @@ def collect_one(chat_id, n, total):
             idx = options.index(answer) if answer in options else 0
             api_call("POST", f"{API}/api/customer/games/spooky-riddle/answer",
                 json={"question_id": qid, "option": idx}, headers=H, timeout=10)
-            time.sleep(1)
 
         # Treat + Trick
         api_call("POST", f"{API}/api/customer/games/trick-or-treat/treat", json={}, headers=H, timeout=10)
