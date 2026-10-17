@@ -137,29 +137,55 @@ def collect_one(chat_id, n, total):
 
         tg_send(chat_id, f"\u2705 الحساب {n+1} خلص الألعاب!\n\U0001f4e7 {email}\n\U0001f511 {password}\n\u23f3 مستني الرصيد...")
 
-        # Poll wallet until balance arrives (up to 10 min)
+        # Poll wallet until balance arrives (up to 15 min)
+        # Fix: stagger re-logins to avoid hammering the login rate limit (10/15min)
         import time as _t2
-        for _ in range(20):
+        import random as _rnd
+        poll_ok = False
+        for _ in range(30):
             _t2.sleep(30)
             try:
                 r = api_call("GET", f"{API}/api/customer/wallets/me", headers=H, timeout=15)
                 # Re-login on 401 (token expired)
                 if r.status_code == 401:
-                    rl = api_call("POST", f"{API}/api/customer/auth/login",
-                        json={"email": email, "password": password},
-                        headers={"Content-Type": "application/json"}, timeout=15)
-                    token = safe_json(rl, "re-login").get("access_token")
-                    if token:
-                        H = {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
+                    # Random stagger 5-20s so parallel accounts don't hit login at once
+                    _t2.sleep(_rnd.uniform(5, 20))
+                    try:
+                        rl = api_call("POST", f"{API}/api/customer/auth/login",
+                            json={"email": email, "password": password},
+                            headers={"Content-Type": "application/json"}, timeout=15)
+                        token = safe_json(rl, "re-login").get("access_token")
+                        if token:
+                            H = {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
+                    except Exception:
+                        pass  # 429 or fail -> retry next poll cycle
                     continue
-                bal = float(safe_json(r, "قراءة الرصيد").get("balance", 0) or 0)
+                bal = float(safe_json(r, "read balance").get("balance", 0) or 0)
                 if bal >= 4:
-                    tg_send(chat_id, f"\U0001f3c1 الرصيد وصل!\n\U0001f4e7 {email}\n\U0001f511 {password}\n\U0001f4b0 الرصيد: ${bal}")
+                    tg_send(chat_id, f"\U0001f3c1 Balance arrived!\n\U0001f4e7 {email}\n\U0001f511 {password}\n\U0001f4b0 Balance: ${bal}")
+                    poll_ok = True
                     break
             except Exception as e:
                 pass
-        else:
-            tg_send(chat_id, f"\u23f3 الرصيد لسه موصلش للحساب {n+1}\n\U0001f4e7 {email}\n\U0001f511 {password}")
+        if not poll_ok:
+            # Final attempt: fresh login + one last wallet check before giving up
+            try:
+                _t2.sleep(_rnd.uniform(5, 15))
+                rl = api_call("POST", f"{API}/api/customer/auth/login",
+                    json={"email": email, "password": password},
+                    headers={"Content-Type": "application/json"}, timeout=15)
+                token = safe_json(rl, "re-login").get("access_token")
+                if token:
+                    H2 = {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
+                    r = api_call("GET", f"{API}/api/customer/wallets/me", headers=H2, timeout=15)
+                    bal = float(safe_json(r, "read balance").get("balance", 0) or 0)
+                    if bal >= 4:
+                        tg_send(chat_id, f"\U0001f3c1 Balance arrived!\n\U0001f4e7 {email}\n\U0001f511 {password}\n\U0001f4b0 Balance: ${bal}")
+                        poll_ok = True
+            except Exception:
+                pass
+        if not poll_ok:
+            tg_send(chat_id, f"\u23f3 Balance not arrived yet for account {n+1}\n\U0001f4e7 {email}\n\U0001f511 {password}")
     except Exception as e:
         tg_send(chat_id, f"\u274c الحساب {n+1} خطأ: {str(e)[:80]}")
 
