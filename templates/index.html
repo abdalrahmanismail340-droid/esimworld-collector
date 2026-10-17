@@ -665,15 +665,14 @@ async function doPurchase(H, product, st, balance, coupon) {
   const mr = await fetch(API + '/api/customer/auth/me', {headers: H});
   const me = await mr.json();
   const price = parseFloat(product.pricing.price);
+  // Apply 20% TRAVEL20 discount to get final total
+  const finalTotal = coupon ? Math.round(price * 0.8 * 100) / 100 : price;
   const body = {
-    customer_name: me.name || 'Customer',
-    customer_email: me.email,
     currency_id: '08337403-44c6-4d09-b1f0-dccb10b3a912',
-    payment_method: 'cashback',
-    cashback_amount: Math.min(balance, price),
-    items: [{product_id: product.id, unit_price: product.pricing.price, quantity: 1}]
+    coupon_code: coupon ? coupon.toLowerCase() : undefined,
+    wallet_amount: finalTotal,
+    items: [{product_id: product.id, unit_price: price, quantity: 1}]
   };
-  if (coupon) body.coupon_code = coupon;
   // Try customer endpoint first, fallback to public
   let r = await fetch(API + '/api/customer/orders', {method: 'POST', headers: H, body: JSON.stringify(body)});
   if (!r.ok) {
