@@ -71,6 +71,37 @@ BUY_PRODUCTS = {
 }
 CURRENCY_USD = "08337403-44c6-4d09-b1f0-dccb10b3a912"
 
+
+def bot_fetch_lpa(chat_id, H, order_id, email):
+    """Fetch LPA/QR/ICCID for a purchased eSIM order."""
+    import re as _re
+    import time as _t
+    # Wait a bit for provisioning, then try a few times
+    for attempt in range(4):
+        if attempt > 0:
+            _t.sleep(30)
+        try:
+            r = api_call("GET", f"{API}/api/customer/orders/{order_id}", headers=H, timeout=15)
+            j = safe_json(r, "fetch LPA")
+            txt = json.dumps(j)
+            lpa_m = _re.search(r"LPA:[^\"\\\\]+", txt)
+            lpa = lpa_m.group(0) if lpa_m else None
+            qr = j.get("qr_code") or j.get("qrCode") or j.get("qr") or ((j.get("esim") or {}).get("qr_code"))
+            iccid = j.get("iccid") or ((j.get("esim") or {}).get("iccid"))
+            if lpa or qr or iccid:
+                msg = f"\U0001f4f2 eSIM Details\n\U0001f4e7 {email}\n"
+                if lpa: msg += f"\nLPA: <code>{lpa}</code>"
+                if qr:
+                    qr_s = qr if isinstance(qr, str) else json.dumps(qr)
+                    msg += f"\nQR: <code>{qr_s[:300]}</code>"
+                if iccid: msg += f"\nICCID: <code>{iccid}</code>"
+                tg_send(chat_id, msg)
+                return True
+        except Exception:
+            pass
+    tg_send(chat_id, f"\u23f3 LPA not ready yet for {email} — check My eSIMs in the app in a few minutes.")
+    return False
+
 def bot_auto_buy(chat_id, H, balance, email):
     """Auto-buy after balance arrives. Returns order dict or None."""
     # Pick product by balance
@@ -92,7 +123,11 @@ def bot_auto_buy(chat_id, H, balance, email):
         j = safe_json(r, "auto-buy")
         ps = j.get("payment_status")
         if ps == "paid":
+            order_id = j.get("id") or j.get("order_id")
             tg_send(chat_id, f"\U0001f389 \U0001f389 PURCHASED!\n\U0001f4e7 {email}\n\U0001f4e6 {prod['name']}\n\U0001f4b0 Paid ${prod['after_coupon']} from wallet\n\U0001f9fe Order: {j.get('order_number')}")
+            if order_id:
+                tg_send(chat_id, f"\u23f3 Fetching eSIM activation code for {email}...")
+                bot_fetch_lpa(chat_id, H, order_id, email)
             return j
         else:
             tg_send(chat_id, f"\u26a0\ufe0f Buy returned status={j.get('status')}/{ps} for {email}")
