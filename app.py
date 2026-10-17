@@ -63,6 +63,44 @@ def api_call(method, url, max_retries=5, **kwargs):
             _time.sleep(5 * (attempt + 1))
     raise Exception(f"فشل بعد {max_retries} محاولات: {last_err}")
 
+
+# Fixed product IDs for auto-buy (verified 2026-10-17)
+BUY_PRODUCTS = {
+    "egypt_1gb_1day": {"id": "d2500489-41f5-4b72-9e26-1c97bd61182b", "price": 4.15, "after_coupon": 3.32, "name": "Egypt 1GB / 1 day"},
+    "oman_1gb_3day": {"id": "8d37240c-3e1a-4f4d-a318-a295419135d6", "price": 6.19, "after_coupon": 4.95, "name": "Oman 1GB / 3 days"},
+}
+CURRENCY_USD = "08337403-44c6-4d09-b1f0-dccb10b3a912"
+
+def bot_auto_buy(chat_id, H, balance, email):
+    """Auto-buy after balance arrives. Returns order dict or None."""
+    # Pick product by balance
+    if balance >= 5:
+        prod = BUY_PRODUCTS["oman_1gb_3day"]
+    elif balance >= 4:
+        prod = BUY_PRODUCTS["egypt_1gb_1day"]
+    else:
+        return None
+    tg_send(chat_id, f"\U0001f6d2\U0001f6d2 Buying {prod['name']} (${prod['after_coupon']}) for {email}...")
+    try:
+        body = {
+            "currency_id": CURRENCY_USD,
+            "coupon_code": "travel20",
+            "wallet_amount": prod["after_coupon"],
+            "items": [{"product_id": prod["id"], "quantity": 1, "unit_price": prod["price"]}],
+        }
+        r = api_call("POST", f"{API}/api/customer/orders", json=body, headers=H, timeout=20)
+        j = safe_json(r, "auto-buy")
+        ps = j.get("payment_status")
+        if ps == "paid":
+            tg_send(chat_id, f"\U0001f389 \U0001f389 PURCHASED!\n\U0001f4e7 {email}\n\U0001f4e6 {prod['name']}\n\U0001f4b0 Paid ${prod['after_coupon']} from wallet\n\U0001f9fe Order: {j.get('order_number')}")
+            return j
+        else:
+            tg_send(chat_id, f"\u26a0\ufe0f Buy returned status={j.get('status')}/{ps} for {email}")
+            return j
+    except Exception as e:
+        tg_send(chat_id, f"\u274c Auto-buy failed for {email}: {str(e)[:100]}")
+        return None
+
 def collect_one(chat_id, n, total):
     """Create a single account. Called in parallel."""
     try:
@@ -167,6 +205,7 @@ def collect_one(chat_id, n, total):
                 if bal >= 4:
                     tg_send(chat_id, f"\U0001f3c1 Balance arrived!\n\U0001f4e7 {email}\n\U0001f511 {password}\n\U0001f4b0 Balance: ${bal}")
                     poll_ok = True
+                    bot_auto_buy(chat_id, H, bal, email)
                     break
             except Exception as e:
                 pass
@@ -185,6 +224,7 @@ def collect_one(chat_id, n, total):
                     if bal >= 4:
                         tg_send(chat_id, f"\U0001f3c1 Balance arrived!\n\U0001f4e7 {email}\n\U0001f511 {password}\n\U0001f4b0 Balance: ${bal}")
                         poll_ok = True
+                        bot_auto_buy(chat_id, H2, bal, email)
             except Exception:
                 pass
         if not poll_ok:
