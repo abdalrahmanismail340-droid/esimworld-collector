@@ -145,8 +145,8 @@ def collect_one(chat_id, n, total):
         import time as _t2
         import random as _rnd
         poll_ok = False
-        for _ in range(30):
-            _t2.sleep(30)
+        for _ in range(60):
+            _t2.sleep(15)
             try:
                 r = api_call("GET", f"{API}/api/customer/wallets/me", headers=H, timeout=15)
                 # Re-login on 401 (token expired)
