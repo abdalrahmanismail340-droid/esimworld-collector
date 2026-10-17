@@ -607,52 +607,33 @@ function setBuyMode(m) {
 async function autoBuy(H, balance) {
   const st = document.getElementById('buyStatus');
 
-  if (buyMode === 'saudi' || balance < 5) {
-    // Saudi 1GB plan with available balance ($3.38)
-    st.textContent = '🔍 بدور على باقة السعودية 1GB...';
-    log('🔍 Searching Saudi 1GB plan...', 'info');
-    let product = null;
-    for (let page = 1; page <= 35; page++) {
-      const r = await fetch(`${API}/api/products?page=${page}&page_size=100`, {headers: H});
-      const j = await r.json();
-      for (const p of j.items || []) {
-        const cname = ((p.country || {}).name || '').toLowerCase();
-        if ((cname.includes('saudi') || cname.includes('saud'))
-            && p.data_amount_gb === 1 && !p.is_unlimited
-            && parseFloat(p.pricing.price) <= balance) {
-          if (!product || parseFloat(p.pricing.price) < parseFloat(product.pricing.price)) product = p;
-        }
-      }
-      if (product) break;
-      if (page * 100 >= (j.total || 0)) break;
-    }
-    if (!product) { st.textContent = '❌ مفيش باقة سعودية بالرصيد ده'; log('❌ No Saudi plan in budget', 'err'); return; }
-    log(`✅ Found: ${product.title} - $${product.pricing.price}`, 'ok');
-    return doPurchase(H, product, st, balance, 'TRAVEL20');
+  // Fixed product IDs (verified 2026-10-17)
+  const PRODUCTS = {
+    egypt_1gb_1day: {id: 'd2500489-41f5-4b72-9e26-1c97bd61182b', price: 4.15, afterCoupon: 3.32, name: 'Egypt 1GB / 1 day'},
+    egypt_1gb_3day: {id: '655feccf-0a64-4b4c-8461-477076d4b1a3', price: 6.05, afterCoupon: 4.84, name: 'Egypt 1GB / 3 days'},
+    oman_1gb_3day:  {id: '8d37240c-3e1a-4f4d-a318-a295419135d6', price: 6.19, afterCoupon: 4.95, name: 'Oman 1GB / 3 days'},
+    oman_1gb_1day:  {id: 'bac3bcbd-a5cf-4e36-ac73-f7510afe6819', price: 4.24, afterCoupon: 3.39, name: 'Oman 1GB / 1 day'},
+    saudi_1gb_7day: {id: '11badeb2-89a9-415c-b6cc-ed3c796f0dd8', price: 3.38, afterCoupon: 2.70, name: 'Saudi 1GB / 7 days'},
+    saudi_2gb_15day:{id: 'aa798b43-ac7b-41c9-849a-eaaa03736d76', price: 5.94, afterCoupon: 4.75, name: 'Saudi 2GB / 15 days'},
+  };
+
+  // Buy rules: $5+ -> Oman 3 days, $4+ -> Egypt 1GB/1day
+  let product = null;
+  if (balance >= 5) {
+    product = PRODUCTS.oman_1gb_3day;
+    log(`🎯 Balance $${balance} >= $5 → buying ${product.name} ($${product.afterCoupon} after TRAVEL20)`, 'ok');
+  } else if (balance >= 4) {
+    product = PRODUCTS.egypt_1gb_1day;
+    log(`🎯 Balance $${balance} >= $4 → buying ${product.name} ($${product.afterCoupon} after TRAVEL20)`, 'ok');
+  } else {
+    st.textContent = '❌ الرصيد مش كفاية للشراء';
+    log(`❌ Balance $${balance} < $4, can't buy`, 'err');
+    return;
   }
 
-  // Oman 1GB/3days with TRAVEL20
-  st.textContent = '🔍 بدور على باقة عمان 1GB/3أيام...';
-  log('🔍 Searching Oman 1GB/3days...', 'info');
-  let omanProduct = null;
-  for (let page = 1; page <= 35; page++) {
-    const r = await fetch(`${API}/api/products?page=${page}&page_size=100`, {headers: H});
-    const j = await r.json();
-    for (const p of j.items || []) {
-      const cname = (p.country || {}).name || '';
-      if (cname.toLowerCase().includes('oman')
-          && p.data_amount_gb === 1 && p.expire_days === 3 && !p.is_unlimited) {
-        omanProduct = p; break;
-      }
-    }
-    if (omanProduct) break;
-    if (page * 100 >= (j.total || 0)) break;
-  }
-  if (!omanProduct) { st.textContent = '❌ الباقة مش موجودة'; log('❌ Oman not found', 'err'); return; }
-  log(`✅ Found: ${omanProduct.title} - $${omanProduct.pricing.price}`, 'ok');
-  return doPurchase(H, omanProduct, st, balance, 'TRAVEL20');
+  st.textContent = `💳 بيشتري ${product.name}...`;
+  return doPurchase(H, {id: product.id, pricing: {price: product.price}, title: product.name}, st, balance, 'TRAVEL20');
 }
-
 async function doPurchase(H, product, st, balance, coupon) {
   if (coupon) {
     st.textContent = '🎟️ بيطبق ' + coupon + '...';
